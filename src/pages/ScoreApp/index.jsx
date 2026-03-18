@@ -169,6 +169,9 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
     } else if (id === "discord") {
       newData = { ...newData, membershipMonths: 6, details: "6 months member · Early Adopter" };
       points = 51;
+    } else if (id === "ens") {
+      newData = { hasENS: true, domain: "demo.eth" };
+      points = 30;
     }
 
     updateSocial(id, newData);
@@ -1174,9 +1177,9 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
                       isActive={pohLevel === 1} 
                       currentPoh={pohLevel}
                       requirements={[
-                        { id: "ens", label: "Primary ENS Name registered", met: social.ens?.hasENS, actionLabel: "Connect Wallet" }
+                        { id: "ens", label: "Primary ENS Name registered", met: social.ens?.hasENS, actionLabel: "Register ENS" }
                       ]}
-                      onAction={() => connectWallet()} // Wire up to connectWallet
+                      onAction={() => handleConnect("ens")}
                     />
                     <PoHLevelAccordion 
                       level={3} 
