@@ -9,8 +9,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@rainbow-me/rainbowkit": "^2.2.10",
+    "ethers": "^6.16.0",
+    "framer-motion": "^12.36.0",
+    "lucide-react": "^0.577.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-countup": "^6.5.3",
+    "react-dom": "^18.2.0",
+    "recharts": "^3.8.0",
+    "viem": "^2.47.5",
+    "wagmi": "^3.5.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",

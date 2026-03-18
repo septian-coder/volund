@@ -1,3 +1,43 @@
+const USE_REAL_CHAIN = false; // toggle to true when contracts deployed
+
+export async function getWalletScore(address) {
+  if (!USE_REAL_CHAIN) {
+    // return mock data for now
+    return {}; // MOCK_WALLET_DATA
+  }
+  
+  // REAL implementation (ready for when contract is deployed):
+  // const contract = new ethers.Contract(
+  //   VOLUND_SCORE_ORACLE_ADDRESS,
+  //   VolundScoreOracleABI,
+  //   provider
+  // )
+  // return await contract.getScore(address)
+}
+
+export async function getWalletBadges(address) {
+  if (!USE_REAL_CHAIN) {
+    return {}; // MOCK_BADGES
+  }
+  // const contract = new ethers.Contract(...)
+  // return await contract.getBadges(address)
+}
+
+export async function claimBadge(badgeId, signer) {
+  if (!USE_REAL_CHAIN) {
+    // simulate claim
+    await new Promise(r => setTimeout(r, 1500));
+    return { success: true, txHash: '0xMOCK...HASH' };
+  }
+  // const contract = new ethers.Contract(
+  //   VOLUND_BADGE_ADDRESS,
+  //   VolundBadgeABI,
+  //   signer
+  // )
+  // const tx = await contract.claimBadge(badgeId)
+  // return { success: true, txHash: tx.hash }
+}
+
 import { ETH_RPC } from "../constants";
 
 // ── Onchain fetching ──────────────────────────────────────────────────────────
