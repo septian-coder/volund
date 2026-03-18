@@ -1,0 +1,128 @@
+import { ETH_RPC } from "../constants";
+
+// ── Onchain fetching ──────────────────────────────────────────────────────────
+
+export async function rpcCall(method, params = []) {
+  if (typeof window !== "undefined" && window.ethereum) {
+    try { return await window.ethereum.request({ method, params }); } catch (e) {}
+  }
+  const res = await fetch(ETH_RPC, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+  });
+  return (await res.json()).result;
+}
+
+export async function fetchOnchainData(address) {
+  let balance = 0, txCount = 0;
+  try {
+    const [balHex, txCountHex] = await Promise.all([
+      rpcCall("eth_getBalance", [address, "latest"]),
+      rpcCall("eth_getTransactionCount", [address, "latest"]),
+    ]);
+    balance = parseFloat((parseInt(balHex, 16) / 1e18).toFixed(4));
+    txCount = parseInt(txCountHex, 16);
+  } catch (e) {
+    console.warn("RPC fetch failed, using defaults:", e.message);
+  }
+
+  let walletAgeMo = 0;
+  try {
+    const url = `https://api.etherscan.io/api?module=account&action=txlist&address=${address}&page=1&offset=1&sort=asc`;
+    const r = await Promise.race([
+      fetch(url).then(r => r.json()),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 5000)),
+    ]);
+    if (r.status === "1" && r.result?.length > 0) {
+      const ts = parseInt(r.result[0].timeStamp) * 1000;
+      walletAgeMo = Math.max(1, Math.floor((Date.now() - ts) / (1000 * 60 * 60 * 24 * 30)));
+    } else if (txCount > 0) {
+      walletAgeMo = Math.min(Math.max(Math.round(txCount / 5), 1), 60);
+    }
+  } catch (e) {
+    if (txCount > 0) walletAgeMo = Math.min(Math.max(Math.round(txCount / 5), 1), 60);
+  }
+
+  let ens = null, ensAvatar = null;
+  try {
+    const query = `{"query":"{domains(where:{resolvedAddress:\\"${address.toLowerCase()}\\"},first:1){name, resolver{texts}}}"}`;
+    const r = await Promise.race([
+      fetch("https://api.thegraph.com/subgraphs/name/ensdomains/ens", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: query,
+      }).then(r => r.json()),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 4000)),
+    ]);
+    const domain = r?.data?.domains?.[0];
+    if (domain) {
+      ens = domain.name;
+      ensAvatar = await fetch(`https://metadata.ens.domains/mainnet/avatar/${ens}`)
+        .then(rx => rx.ok ? rx.url : null).catch(() => null);
+    }
+  } catch (e) {}
+
+  return { balance, txCount, walletAgeMo, ens, ensAvatar };
+}
+
+import { calculateScore, realDataToSimInput, getTier as getTierCalc } from "./scoreCalculator";
+
+// ── PoH Level Calculation ───────────────────────────────────────────────────
+
+export function calcPoHLevel(social = {}, onchain = {}) {
+  const matureConnections = [
+    social.github?.connected && (social.github?.ageMonths || 0) >= 3,
+    social.twitter?.connected && (social.twitter?.ageMonths || 0) >= 3,
+    social.discord?.connected && (social.discord?.membershipMonths || 0) >= 3,
+  ].filter(Boolean).length;
+
+  let newLevel = 0;
+
+  // Level 1: 2+ mature social connections
+  if (matureConnections >= 2) newLevel = 1;
+
+  // Level 2: Level 1 DONE + has ENS
+  if (newLevel >= 1 && social.ens?.hasENS === true) newLevel = 2;
+
+  // Level 3: Level 2 DONE + WorldCoin verified
+  if (newLevel >= 2 && social.worldcoin?.verified === true) newLevel = 3;
+
+  // Level 4: Level 3 DONE + 3 vouches from wallets score > 400
+  const reputableVouches = (social.vouches || []).filter(v => v.score >= 400).length;
+  if (newLevel >= 3 && reputableVouches >= 3) newLevel = 4;
+
+  // Fallback to social.pohLevel if provided, otherwise computed level
+  return Math.max(newLevel, Number(social.pohLevel ?? 0));
+}
+
+// ── Score calculation ─────────────────────────────────────────────────────────
+
+export function calcScore(d, social = {}) {
+  // Transform the walletData shape 'd' to SimInput
+  const simInput = realDataToSimInput(d, social);
+  
+  // Also manually add any fields that might be in 'd' but not caught by realDataToSimInput
+  // d.badgeCount, d.hasRareBadge, etc.
+  if (d.badgeCount !== undefined) simInput.badgeCount = d.badgeCount;
+  if (d.hasRareBadge !== undefined) simInput.rareBadges = 1;
+  if (d.hasEpicBadge !== undefined) simInput.epicBadges = 1;
+  if (d.hasDivineBadge !== undefined) simInput.divineBadges = 1;
+
+  return calculateScore(simInput);
+}
+
+export function getTier(s) {
+  return getTierCalc(s);
+}
+
+export function shortAddr(a) { return a ? a.slice(0, 6) + "..." + a.slice(-4) : ""; }
+
+export function generateHistory(currentScore, address) {
+  const months = ["Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
+  let seed = 0;
+  if (address) for (let i = 0; i < address.length; i++) seed += address.charCodeAt(i);
+  return months.map((month, i) => {
+    const step = 5 - i;
+    const variability = Math.sin(seed + i) * 20;
+    const trend = -(step * 30);
+    return { month, score: Math.max(0, Math.min(1000, Math.round(currentScore + trend + variability))) };
+  });
+}
