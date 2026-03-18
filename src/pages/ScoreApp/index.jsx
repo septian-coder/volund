@@ -137,7 +137,7 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
     badgeBonusTotal: 0
   } : null;
 
-  const computed   = walletData ? calcScore(walletData, { ...social, attested: !!attestationId }) : null;
+  const computed   = walletData ? calcScore(walletData, { ...social, pohLevel: contextPohLevel, attested: !!attestationId }) : null;
   const rawScore   = computed?.rawTotal ?? 0;
   const scoreVal   = computed?.total ?? 0;
   const isCapped   = computed?.isCapped ?? false;
@@ -418,6 +418,20 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
     }
   }
 
+  async function resolveENS(address) {
+    try {
+      const mainnetProvider = new ethers.JsonRpcProvider('https://eth.llamarpc.com');
+      const ensName = await mainnetProvider.lookupAddress(address);
+      if (ensName) {
+        return { hasENS: true, domain: ensName };
+      }
+      return { hasENS: false, domain: null };
+    } catch (err) {
+      console.error('ENS lookup failed:', err);
+      return { hasENS: false, domain: null };
+    }
+  }
+
   async function connectWallet() {
     setWalletError("");
     if (!isLive) {
@@ -433,8 +447,18 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
     setConnecting(true);
     try {
       const accounts = await window.ethereum.request({ method:"eth_requestAccounts" });
-      setWallet(accounts[0]);
-      await checkNetwork(accounts[0]);
+      const addr = accounts[0];
+      setWallet(addr);
+      
+      // Real ENS Lookup
+      resolveENS(addr).then(ens => {
+        updateSocial('ens', ens);
+        if (ens.hasENS) {
+          addToast(30, "ENS Verified");
+        }
+      });
+
+      await checkNetwork(addr);
     } catch(err) {
       if (err.code === 4001) {
         setWalletError("Connection rejected.");
@@ -1177,9 +1201,9 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
                       isActive={pohLevel === 1} 
                       currentPoh={pohLevel}
                       requirements={[
-                        { id: "ens", label: "Primary ENS Name registered", met: social.ens?.hasENS, actionLabel: "Register ENS" }
+                        { id: "ens", label: "Primary ENS Name registered", met: social.ens?.hasENS, actionLabel: social.ens?.hasENS ? "" : "Connect Wallet" }
                       ]}
-                      onAction={() => handleConnect("ens")}
+                      onAction={() => connectWallet()}
                     />
                     <PoHLevelAccordion 
                       level={3} 
