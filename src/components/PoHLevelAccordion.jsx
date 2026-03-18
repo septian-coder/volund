@@ -9,6 +9,7 @@ export default function PoHLevelAccordion({ level, isActive, currentPoh, require
   const [isOpen, setIsOpen] = useState(isActive);
   const isActiveLevel = (currentPoh + 1) === level;
   const isLocked = level > (currentPoh + 1);
+  const isCompleted = currentPoh >= level;
 
   return (
     <div 
