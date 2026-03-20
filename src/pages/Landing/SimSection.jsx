@@ -1,308 +1,382 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useInView } from "../../hooks/useInView";
-import { useBreakpoint } from "../../hooks/useBreakpoint";
 import Tag from "../../components/Tag";
 
-// ── Simulation ────────────────────────────────────────────────────────
-export default function SimSection({ isMobile }) {
-  const [mode, setMode] = useState("before");
-  const [score, setScore] = useState(0);
-  const canvasRef = useRef();
-  const modeRef = useRef("before");
-  const simRef = useRef();
-  const simVis = useInView(simRef);
-  const rafRef = useRef();
+// ── CONFIGURATION & DATA ───────────────────────────────────────────────
 
-  // Auto-cycle
-  useEffect(() => {
-    if (!simVis) return;
-    const id = setInterval(() => {
-      setMode(m => { const next = m === "before" ? "after" : "before"; modeRef.current = next; return next; });
-    }, 5000);
-    return () => clearInterval(id);
-  }, [simVis]);
+const beforeNodes = [
+  { id: 'l1', x: 15, y: 20, label: 'Twitter/X' },
+  { id: 'l2', x: 15, y: 40, label: 'GitHub' },
+  { id: 'l3', x: 15, y: 60, label: 'On-chain Data' },
+  { id: 'l4', x: 15, y: 80, label: 'KYC Provider' },
+  { id: 'c1', x: 50, y: 25, label: 'Manual Review' },
+  { id: 'c2', x: 50, y: 50, label: 'Centralized DB' },
+  { id: 'c3', x: 50, y: 75, label: '3rd Party Oracle' },
+  { id: 'r1', x: 85, y: 30, label: 'DeFi Protocol', rightText: '?' },
+  { id: 'r2', x: 85, y: 55, label: 'DAO', rightText: '?' },
+  { id: 'r3', x: 85, y: 80, label: 'Airdrop', rightText: '?' },
+];
 
-  // Score count-up
-  useEffect(() => {
-    if (mode === "after") {
-      let v = 0; setScore(0);
-      const t = setInterval(() => { v += Math.ceil((742 - v) / 6) || 1; if (v >= 742) { clearInterval(t); v = 742; } setScore(v); }, 24);
-      return () => clearInterval(t);
-    } else { setScore(0); }
-  }, [mode]);
+const beforeEdges = [
+  { from: 'l1', to: 'c2' },
+  { from: 'l2', to: 'c1' },
+  { from: 'l3', to: 'c3' },
+  { from: 'l4', to: 'c1' },
+  { from: 'c1', to: 'r1' },
+  { from: 'c1', to: 'r2' },
+  { from: 'c2', to: 'r2' },
+  { from: 'c3', to: 'r1' },
+  { from: 'c3', to: 'r3' },
+];
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const dpr = window.devicePixelRatio || 1;
-    const W = canvas.offsetWidth, H = canvas.offsetHeight;
-    canvas.width = W * dpr; canvas.height = H * dpr;
-    const ctx = canvas.getContext("2d");
-    ctx.scale(dpr, dpr);
+const calloutsBefore = [
+  { text: "$ Repeated KYC costs $50–$200 per user", x: 30, y: 8 },
+  { text: "⚠️ No portable reputation across protocols", x: 75, y: 12 },
+  { text: "$ Sybil attacks cost protocols $10M+ annually", x: 70, y: 92 },
+  { text: "⚠️ Centralized data = single point of failure", x: 30, y: 90 },
+  { text: "⚠️ No on-chain verifiability — trust is assumed", x: 35, y: 45 },
+  { text: "$ Manual review delays onboarding by 3–7 days", x: 50, y: 15 },
+];
 
-    const cx = W / 2, cy = H / 2;
+const afterNodes = [
+  { id: 'al1', x: 15, y: 20, label: 'On-chain Activity' },
+  { id: 'al2', x: 15, y: 40, label: 'DeFi Behavior' },
+  { id: 'al3', x: 15, y: 60, label: 'Social Identity' },
+  { id: 'al4', x: 15, y: 80, label: 'Badges' },
+  { id: 'c1', x: 50, y: 50, isHero: true },
+  { id: 'ar1', x: 85, y: 20, label: 'DeFi Protocol', rightText: '✓ Score ≥ 100' },
+  { id: 'ar2', x: 85, y: 40, label: 'DAO Governance', rightText: '✓ Voice Power' },
+  { id: 'ar3', x: 85, y: 60, label: 'Airdrop', rightText: '✓ Gold Tier' },
+  { id: 'ar4', x: 85, y: 80, label: 'KYC-free Access', rightText: '✓ Verified' },
+];
 
-    // NODES
-    const protocols = [
-      { label: "KYC",      icon: "◈", angle: -90 },
-      { label: "DeFi",     icon: "◎", angle: -30 },
-      { label: "Bridge",   icon: "⛓", angle:  30 },
-      { label: "IPC Gate", icon: "◉", angle:  90 },
-      { label: "Oracle",   icon: "◇", angle: 150 },
-      { label: "Collateral",icon: "◆",angle: 210 },
-    ];
-    const R = Math.min(W, H) * 0.33;
-    const nodes = protocols.map(p => {
-      const rad = (p.angle * Math.PI) / 180;
-      return { x: cx + R * Math.cos(rad), y: cy + R * Math.sin(rad), label: p.label, icon: p.icon };
-    });
-    const hub = { x: cx, y: cy, label: "Volund", icon: "◎" };
+const afterEdges = [
+  ...[1,2,3,4].map(i => ({ from: `al${i}`, to: 'c1' })),
+  ...[1,2,3,4].map(i => ({ from: 'c1', to: `ar${i}` }))
+];
 
-    // PARTICLES
-    const particles = [];
-    function spawnParticle(from, to, good) {
-      particles.push({ x: from.x, y: from.y, tx: to.x, ty: to.y, t: 0, good, speed: 0.004 + Math.random() * 0.003, dead: false });
-    }
+const calloutsAfter = [
+  { text: "✓ $0 integration cost — native protocol call", x: 30, y: 15 },
+  { text: "✓ One score, readable by all Rialo protocols", x: 70, y: 15 },
+  { text: "✓ Soulbound badges — non-transferable proof", x: 30, y: 85 },
+  { text: "✓ ZK-ready — prove eligibility without revealing identity", x: 70, y: 85 },
+  { text: "✓ Score updates in <10ms on-chain read", x: 50, y: 8 },
+  { text: "✓ Composable — any protocol can gate with 1 line", x: 50, y: 92 },
+];
 
-    let spawnTimer = 0;
+const statsBefore = [
+  { label: "INTEGRATION COST", prefix: "$", val: 20, suffix: " / verification" },
+  { label: "COLLATERAL", prefix: "", val: 300, suffix: "%+ required" },
+  { label: "TRUST LATENCY", prefix: "", val: 3.2, suffix: "s per protocol", isFloat: true },
+];
 
-    function drawNode(n, active, size = 26) {
-      const isDark = modeRef.current === "before";
-      ctx.beginPath();
-      ctx.arc(n.x, n.y, size, 0, Math.PI * 2);
-      ctx.fillStyle = active ? (isDark ? "rgba(248,113,113,0.1)" : "rgba(169,221,211,0.12)") : "rgba(255,255,255,0.04)";
-      ctx.fill();
-      ctx.strokeStyle = active ? (isDark ? "rgba(248,113,113,0.5)" : "rgba(169,221,211,0.6)") : "rgba(255,255,255,0.1)";
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      ctx.fillStyle = isDark ? "#f87171" : "#a9ddd3";
-      ctx.textAlign = "center";
-      ctx.font = `13px Inter,sans-serif`;
-      ctx.fillText(n.icon, n.x, n.y - 4);
-      ctx.font = `600 8px Inter,sans-serif`;
-      ctx.fillStyle = isDark ? "rgba(248,113,113,0.7)" : "rgba(169,221,211,0.8)";
-      ctx.fillText(n.label, n.x, n.y + 10);
-    }
+const statsAfter = [
+  { label: "INTEGRATION COST", prefix: "$", val: 0, suffix: " native call" },
+  { label: "COLLATERAL", prefix: "", val: 125, suffix: "% with score" },
+  { label: "TRUST LATENCY", prefix: "<", val: 10, suffix: "ms (onchain read)" },
+];
 
-    function drawEdge(a, b, good, alpha = 0.18) {
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      ctx.strokeStyle = good ? `rgba(169,221,211,${alpha})` : `rgba(248,113,113,${alpha})`;
-      ctx.lineWidth = 1;
-      ctx.setLineDash(good ? [] : [4, 6]);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
+function getCoords(id, nodes) {
+  const node = nodes.find(n => n.id === id);
+  return node ? { x: node.x, y: node.y } : { x: 0, y: 0 };
+}
 
-    function draw(ts) {
-      ctx.clearRect(0, 0, W, H);
-      const isBefore = modeRef.current === "before";
+// ── COMPONENTS ─────────────────────────────────────────────────────────
 
-      if (isBefore) {
-        // — BEFORE: all-to-all messy graph —
-        for (let i = 0; i < nodes.length; i++) {
-          for (let j = i + 1; j < nodes.length; j++) {
-            drawEdge(nodes[i], nodes[j], false, 0.12);
-          }
-        }
-        // Cost labels on a few edges
-        ctx.font = "7px Inter,sans-serif";
-        ctx.fillStyle = "rgba(248,113,113,0.4)";
-        ctx.textAlign = "center";
-        [["KYC","DeFi","+$12"], ["Bridge","IPC Gate","3.2s"], ["Oracle","Collateral","+$8"]].forEach(([a,b,lbl]) => {
-          const na = nodes.find(n=>n.label===a), nb = nodes.find(n=>n.label===b);
-          if(na&&nb) ctx.fillText(lbl, (na.x+nb.x)/2, (na.y+nb.y)/2 - 5);
-        });
-        nodes.forEach(n => drawNode(n, true, 24));
-
-        // Spawn inter-node particles
-        spawnTimer += 16;
-        if (spawnTimer > 300 && !isMobile) {
-          spawnTimer = 0;
-          const from = nodes[Math.floor(Math.random() * nodes.length)];
-          const to = nodes[Math.floor(Math.random() * nodes.length)];
-          if (from !== to) spawnParticle(from, to, false);
-        }
-
-      } else {
-        // — AFTER: hub-and-spoke through Volund —
-        nodes.forEach(n => drawEdge(hub, n, true, 0.25));
-
-        // Hub glow ring
-        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 50);
-        grad.addColorStop(0, "rgba(169,221,211,0.15)");
-        grad.addColorStop(1, "transparent");
-        ctx.fillStyle = grad;
-        ctx.beginPath(); ctx.arc(cx, cy, 50, 0, Math.PI * 2); ctx.fill();
-
-        nodes.forEach(n => drawNode(n, true, 22));
-
-        // Draw Hub
-        ctx.beginPath(); ctx.arc(cx, cy, 32, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(169,221,211,0.12)"; ctx.fill();
-        ctx.strokeStyle = "#a9ddd3"; ctx.lineWidth = 1.5; ctx.stroke();
-        ctx.font = "600 9px Inter,sans-serif";
-        ctx.fillStyle = "#a9ddd3"; ctx.textAlign = "center";
-        ctx.fillText("VOLUND", cx, cy - 3);
-        ctx.font = "7px Inter,sans-serif"; ctx.fillStyle = "rgba(169,221,211,0.6)";
-        ctx.fillText("RRS", cx, cy + 9);
-
-        spawnTimer += 16;
-        if (spawnTimer > 200 && !isMobile) {
-          spawnTimer = 0;
-          const n = nodes[Math.floor(Math.random() * nodes.length)];
-          spawnParticle(hub, n, true);
-        }
-      }
-
-      // Update & draw particles
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-        p.t += p.speed;
-        if (p.t >= 1) { particles.splice(i, 1); continue; }
-        const x = p.x + (p.tx - p.x) * p.t;
-        const y = p.y + (p.ty - p.y) * p.t;
-        const alpha = Math.sin(p.t * Math.PI);
-        ctx.beginPath(); ctx.arc(x, y, p.good ? 2.5 : 2, 0, Math.PI * 2);
-        ctx.fillStyle = p.good ? `rgba(169,221,211,${alpha * 0.9})` : `rgba(248,113,113,${alpha * 0.7})`;
-        ctx.fill();
-        if (p.good) {
-          ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(169,221,211,${alpha * 0.15})`; ctx.fill();
-        }
-      }
-
-      rafRef.current = requestAnimationFrame(draw);
-    }
-
-    rafRef.current = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, []);
-
-  const handleTabClick = (m) => { setMode(m); modeRef.current = m; };
-
-  const isBefore = mode === "before";
+const NodeBox = ({ label, left, top, isGood, rightText, isHero }) => {
+  if (isHero) {
+    return (
+      <div className="hub-pulse" style={{
+        position: "absolute", left: `${left}%`, top: `${top}%`, transform: "translate(-50%, -50%)",
+        width: "140px", height: "140px", borderRadius: "50%",
+        background: "rgba(169,221,211,0.1)", border: "2px solid #a9ddd3",
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        zIndex: 10
+      }}>
+        <div style={{ fontSize: "11px", fontWeight: 700, color: "#a9ddd3", letterSpacing: "2px" }}>VOLUND</div>
+        <div style={{ fontSize: "38px", fontWeight: 200, color: "#a9ddd3", margin: "4px 0" }}>742</div>
+        <div style={{ fontSize: "9px", color: "rgba(169,221,211,0.7)", letterSpacing: "1px" }}>SCORE ORACLE</div>
+      </div>
+    );
+  }
 
   return (
-    <section ref={simRef} style={{ padding: isMobile ? "60px 20px" : "100px 32px", borderBottom: "1px solid var(--border)", overflow: "hidden" }}>
-      <div style={{ maxWidth: 1100, margin: "0 auto", opacity: simVis ? 1 : 0, transform: simVis ? "none" : "translateY(32px)", transition: "opacity .8s ease, transform .8s ease" }}>
+    <div style={{
+      position: "absolute", left: `${left}%`, top: `${top}%`, transform: "translate(-50%, -50%)",
+      border: isGood ? "1px solid rgba(169,221,211,0.3)" : "1px dashed rgba(255,100,100,0.4)",
+      background: isGood ? "rgba(169,221,211,0.05)" : "rgba(255,50,50,0.05)",
+      color: isGood ? "#e8e3d5" : "rgba(232,227,213,0.6)",
+      borderRadius: "8px", padding: "10px 16px",
+      fontSize: "13px", fontFamily: "'Inter', sans-serif",
+      display: "flex", alignItems: "center", gap: "10px",
+      zIndex: 2, backdropFilter: "blur(4px)", whiteSpace: "nowrap"
+    }}>
+      {label}
+      {rightText && (
+        <span style={{ fontSize: "11px", color: isGood ? "#a9ddd3" : "rgba(232,227,213,0.4)" }}>
+          {rightText}
+        </span>
+      )}
+    </div>
+  );
+};
 
+const Callout = ({ text, x, y, isGood }) => {
+  const color = isGood ? "#a9ddd3" : "rgba(255,130,100,0.8)";
+  return (
+    <div style={{
+      position: "absolute", left: `${x}%`, top: `${y}%`, transform: "translate(-50%, -50%)",
+      color: color, fontSize: "12px", display: "flex", gap: "6px", alignItems: "center",
+      whiteSpace: "nowrap", zIndex: 3, fontWeight: 500, opacity: 0.9, textShadow: "0 2px 10px rgba(0,0,0,0.8)"
+    }}>
+      {text}
+    </div>
+  );
+};
+
+const StatCard = ({ label, prefix, val, suffix, isFloat }) => {
+  const [count, setCount] = useState(0);
+  const ref = useRef(null);
+  const isInView = useInView(ref);
+
+  useEffect(() => {
+    if (isInView) {
+      let startTimestamp = null;
+      let animationFrame;
+      const step = (timestamp) => {
+        if (!startTimestamp) startTimestamp = timestamp;
+        const progress = Math.min((timestamp - startTimestamp) / 1500, 1);
+        const easing = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+        const currentVal = easing * val;
+        setCount(isFloat ? currentVal.toFixed(1) : Math.floor(currentVal));
+        if (progress < 1) {
+          animationFrame = window.requestAnimationFrame(step);
+        }
+      };
+      animationFrame = window.requestAnimationFrame(step);
+      return () => window.cancelAnimationFrame(animationFrame);
+    } else {
+      setCount(0);
+    }
+  }, [isInView, val, isFloat]);
+
+  return (
+    <div ref={ref} style={{
+      background: "rgba(169,221,211,0.04)",
+      border: "1px solid rgba(169,221,211,0.15)",
+      borderRadius: "12px", padding: "20px 24px",
+      transition: "all 0.3s ease", cursor: "default"
+    }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.transform = "translateY(-3px)";
+      e.currentTarget.style.boxShadow = "0 8px 24px rgba(169,221,211,0.1)";
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.transform = "translateY(0)";
+      e.currentTarget.style.boxShadow = "none";
+    }}>
+      <div style={{
+        fontSize: "10px", fontFamily: "'Space Mono', monospace",
+        letterSpacing: "0.2em", color: "rgba(169,221,211,0.5)",
+        textTransform: "uppercase", marginBottom: "8px"
+      }}>
+        {label}
+      </div>
+      <div style={{
+        fontSize: "28px", fontFamily: "'Space Mono', monospace",
+        fontWeight: "bold", color: "#a9ddd3"
+      }}>
+        {prefix}{count}{suffix}
+      </div>
+    </div>
+  );
+};
+
+// ── MAIN SECTION ───────────────────────────────────────────────────────
+
+export default function SimSection({ isMobile }) {
+  const [mode, setMode] = useState("before");
+  const isBefore = mode === "before";
+  const currentStats = isBefore ? statsBefore : statsAfter;
+
+  return (
+    <section style={{ 
+      padding: isMobile ? "60px 20px" : "100px 32px", 
+      borderBottom: "1px solid var(--border)", 
+      overflow: "hidden", 
+      background: "#010101" 
+    }}>
+      <style>{`
+        @keyframes flicker {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 0.6; }
+        }
+        @keyframes flowDots {
+          from { stroke-dashoffset: 24; }
+          to { stroke-dashoffset: 0; }
+        }
+        @keyframes hubPulse {
+          0%, 100% { box-shadow: 0 0 20px rgba(169,221,211,0.1); }
+          50% { box-shadow: 0 0 60px rgba(169,221,211,0.3); }
+        }
+        .flow-line {
+          stroke-dasharray: 0.1 24;
+          stroke-linecap: round;
+          animation: flowDots 1s linear infinite;
+        }
+        .flicker-line {
+          animation: flicker 2s infinite ease-in-out;
+        }
+        .hub-pulse {
+          animation: hubPulse 3s infinite ease-in-out;
+        }
+      `}</style>
+
+      <div className="reveal-up-scroll" style={{ maxWidth: 1100, margin: "0 auto" }}>
+        
         {/* Header */}
-        <Tag>the problem</Tag>
-        <h2 style={{ fontSize: "clamp(28px,4vw,54px)", fontWeight: 300, letterSpacing: "-0.01em", margin: "20px 0 12px", lineHeight: 1.1 }}>
-          <span className="shimmer-text">{isBefore ? "Before Volund:" : "With Volund RRS:"}</span><br/>
-          <span className="shimmer-accent">{isBefore ? "Anonymous. Fragile. Costly." : "Unified. Trusted. Composable."}</span>
+        <Tag>{isBefore ? "the problem" : "the solution"}</Tag>
+        <h2 style={{ 
+          fontSize: "clamp(28px, 4vw, 54px)", fontWeight: 700, 
+          letterSpacing: "-0.01em", margin: "20px 0 12px", lineHeight: 1.1, 
+          color: "#e8e3d5" 
+        }}>
+          {isBefore ? "Before Volund: Fragile. Opaque. Unverifiable." : "With Volund RRS: Unified. Verified. Composable."}
         </h2>
-        <p style={{ fontSize: 13, opacity: 0.55, lineHeight: 1.9, maxWidth: 420, marginBottom: 36 }}>
+        
+        <p style={{ fontSize: 13, opacity: 0.55, lineHeight: 1.9, maxWidth: 500, marginBottom: 36, color: "#e8e3d5" }}>
           {isBefore
             ? "Every protocol builds its own trust check. Your wallet connects to each one separately — slow, costly, and still untrusted."
             : "One score. All protocols read it instantly. No oracles, no KYC re-runs, no middleware."}
         </p>
 
-        {/* Toggle */}
-        <div style={{ display: "flex", gap: 4, marginBottom: 32, padding: 4, background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", borderRadius: 12, width: "fit-content" }}>
-          {[{ id: "before", label: "Before Volund" }, { id: "after", label: "With Volund RRS" }].map(tab => (
-            <button key={tab.id} onClick={() => handleTabClick(tab.id)} style={{
-              padding: "8px 22px", border: "none", borderRadius: 8, cursor: "pointer",
-              fontFamily: "'Inter',sans-serif", fontSize: 11, fontWeight: tab.id === mode ? 700 : 400,
-              background: tab.id === mode ? (tab.id === "before" ? "rgba(248,113,113,0.14)" : "rgba(169,221,211,0.14)") : "transparent",
-              color: tab.id === mode ? (tab.id === "before" ? "#f87171" : "#a9ddd3") : "rgba(255,255,255,0.45)",
-              outline: tab.id === mode ? `1px solid ${tab.id === "before" ? "rgba(248,113,113,0.3)" : "rgba(169,221,211,0.3)"}` : "1px solid transparent",
-              transition: "all 0.25s ease", letterSpacing: ".05em", whiteSpace: "nowrap",
-            }}>
-              {tab.label}
-            </button>
-          ))}
+        {/* Toggle Button */}
+        <div style={{ display: "flex", gap: 12, marginBottom: 40 }}>
+          <button
+            onClick={() => setMode("before")}
+            style={{
+              padding: "12px 24px",
+              background: isBefore ? "rgba(255,50,50,0.08)" : "transparent",
+              border: `1px solid ${isBefore ? "rgba(255,100,100,0.5)" : "rgba(255,100,100,0.3)"}`,
+              color: "rgba(255,130,100,0.8)",
+              borderRadius: "8px", cursor: "pointer",
+              fontFamily: "'Inter', sans-serif", fontSize: "13px", fontWeight: 600,
+              transition: "all 0.3s ease"
+            }}
+          >
+            Before Volund
+          </button>
+          <button
+            onClick={() => setMode("after")}
+            style={{
+              padding: "12px 24px",
+              background: !isBefore ? "rgba(169,221,211,0.08)" : "transparent",
+              border: `1px solid ${!isBefore ? "rgba(169,221,211,0.5)" : "rgba(169,221,211,0.3)"}`,
+              color: "#a9ddd3",
+              borderRadius: "8px", cursor: "pointer",
+              fontFamily: "'Inter', sans-serif", fontSize: "13px", fontWeight: 600,
+              boxShadow: !isBefore ? "0 0 16px rgba(169,221,211,0.1)" : "none",
+              transition: "all 0.3s ease"
+            }}
+          >
+            With Volund RRS
+          </button>
         </div>
 
-        {/* Main panel */}
+        {/* Main Diagram Area */}
         <div style={{
-          display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-          border: "1px solid var(--border)", borderRadius: 20, overflow: "hidden",
-          background: isBefore ? "rgba(248,113,113,0.02)" : "rgba(169,221,211,0.015)",
-          transition: "background 0.7s ease",
+          width: "100%", overflowX: "auto", overflowY: "hidden",
+          border: "1px solid var(--border)", borderRadius: "16px",
+          background: isBefore ? "rgba(255,50,50,0.02)" : "rgba(169,221,211,0.015)",
+          transition: "background 0.5s ease"
         }}>
-          {/* Canvas panel */}
-          <div style={{ position: "relative", height: isMobile ? 280 : 360, borderRight: isMobile ? "none" : "1px solid var(--border)", borderBottom: isMobile ? "1px solid var(--border)" : "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block" }}/>
-            {/* Score overlay when "after" */}
-            {!isBefore && (
-              <div style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)", border: "1px solid rgba(169,221,211,0.25)", borderRadius: 10, padding: "8px 20px", textAlign: "center", whiteSpace: "nowrap" }}>
-                <div style={{ fontSize: 9, letterSpacing: ".2em", color: "rgba(169,221,211,0.6)", marginBottom: 2 }}>REPUTATION SCORE</div>
-                <div style={{ fontSize: 22, fontWeight: 200, color: "#a9ddd3", letterSpacing: "-0.03em", fontFamily: "'Inter',sans-serif" }}>{score} <span style={{ fontSize: 10, opacity: 0.5 }}>/ 1000</span></div>
-              </div>
-            )}
-            {/* "FRAGILE" watermark when "before" */}
-            {isBefore && (
-              <div style={{ position: "absolute", top: 16, right: 16, fontSize: 9, letterSpacing: ".25em", color: "rgba(248,113,113,0.35)", fontWeight: 700, border: "1px solid rgba(248,113,113,0.15)", borderRadius: 4, padding: "3px 8px" }}>
-                FRAGILE SYSTEM
-              </div>
-            )}
-          </div>
+          <div style={{ position: "relative", minWidth: "900px", height: "500px" }}>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={mode}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.4 }}
+                style={{ width: "100%", height: "100%", position: "absolute", top: 0, left: 0 }}
+              >
+                {/* SVG Lines Layer */}
+                <svg style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 1 }}>
+                  {isBefore ? (
+                    beforeEdges.map((edge, i) => {
+                      const from = getCoords(edge.from, beforeNodes);
+                      const to = getCoords(edge.to, beforeNodes);
+                      const mx = (from.x + to.x) / 2;
+                      const my = (from.y + to.y) / 2;
+                      return (
+                        <g key={i}>
+                          <line 
+                            x1={`${from.x}%`} y1={`${from.y}%`} 
+                            x2={`${to.x}%`} y2={`${to.y}%`} 
+                            stroke="rgba(255,100,100,0.4)" strokeWidth="2" strokeDasharray="6,6"
+                            className="flicker-line"
+                          />
+                          <text x={`${mx}%`} y={`${my}%`} fill="rgba(255,100,100,0.6)" fontSize="16" fontWeight="bold" textAnchor="middle" alignmentBaseline="middle">
+                            ✕
+                          </text>
+                        </g>
+                      );
+                    })
+                  ) : (
+                    afterEdges.map((edge, i) => {
+                      const from = getCoords(edge.from, afterNodes);
+                      const to = getCoords(edge.to, afterNodes);
+                      return (
+                        <line 
+                          key={i}
+                          x1={`${from.x}%`} y1={`${from.y}%`} 
+                          x2={`${to.x}%`} y2={`${to.y}%`} 
+                          stroke="rgba(169,221,211,0.4)" strokeWidth="4"
+                          className="flow-line"
+                        />
+                      );
+                    })
+                  )}
+                </svg>
 
-          {/* Detail panel */}
-          <div style={{ padding: isMobile ? "28px 24px" : "44px 40px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-            <div style={{ fontSize: 10, letterSpacing: ".25em", color: isBefore ? "#f87171" : "#a9ddd3", marginBottom: 18, fontWeight: 700, transition: "color 0.5s" }}>
-              {isBefore ? "BEFORE · PROBLEM STATE" : "WITH VOLUND RRS · SOLVED"}
-            </div>
-            <div style={{ fontSize: isMobile ? 20 : 24, fontWeight: 200, letterSpacing: "-0.03em", lineHeight: 1.15, marginBottom: 12 }}>
-              {isBefore ? <>Your wallet is<br/><span style={{ color: "#f87171", fontWeight: 600 }}>a stranger.</span></>
-                       : <>Your score<br/><span style={{ color: "#a9ddd3", fontWeight: 600 }}>speaks for you.</span></>}
-            </div>
-            <p style={{ fontSize: 12, opacity: 0.5, lineHeight: 1.8, marginBottom: 24 }}>
-              {isBefore ? "6 protocols. 6 separate trust checks. Latency compounds. Costs multiply. And you still get blocked."
-                        : "Connect once. Every Rialo protocol reads your score natively. Composable. Zero middleware."}
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {(isBefore ? [
-                { icon: "✗", t: "No shared reputation layer", s: "each protocol re-verifies from scratch" },
-                { icon: "✗", t: "300%+ collateral required", s: "anonymous wallets = max risk tier" },
-                { icon: "✗", t: "KYC friction on every app", s: "+$8–20 per verification" },
-                { icon: "✗", t: "Blocked from IPC & rate tiers", s: "no trust → no access" },
-              ] : [
-                { icon: "✓", t: "One universal score", s: "computed once, read by all protocols" },
-                { icon: "✓", t: "IPC access unlocked", s: "score ≥ 500 → full Rialo access" },
-                { icon: "✓", t: "Collateral drops to 125%", s: "Elite tier earns best capital efficiency" },
-                { icon: "✓", t: "Composable & queryable", s: "any protocol calls it natively, no oracles" },
-              ]).map((item, i) => (
-                <div key={i} style={{
-                  display: "flex", alignItems: "flex-start", gap: 10, padding: "9px 12px", borderRadius: 8,
-                  background: isBefore ? "rgba(248,113,113,0.04)" : "rgba(169,221,211,0.04)",
-                  border: `1px solid ${isBefore ? "rgba(248,113,113,0.12)" : "rgba(169,221,211,0.12)"}`,
-                  animation: `fade-up 0.35s ${i * 0.07}s ease both`,
-                }}>
-                  <span style={{ color: isBefore ? "#f87171" : "#4ade80", fontSize: 12, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>{item.icon}</span>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 1 }}>{item.t}</div>
-                    <div style={{ fontSize: 10, opacity: 0.45 }}>{item.s}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                {/* HTML Nodes Layer */}
+                {isBefore ? (
+                  <>
+                    {beforeNodes.map(node => (
+                      <NodeBox key={node.id} left={node.x} top={node.y} label={node.label} rightText={node.rightText} isGood={false} />
+                    ))}
+                    {calloutsBefore.map((c, i) => (
+                      <Callout key={i} text={c.text} x={c.x} y={c.y} isGood={false} />
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    {afterNodes.map(node => (
+                      <NodeBox key={node.id} left={node.x} top={node.y} label={node.label} rightText={node.rightText} isHero={node.isHero} isGood={true} />
+                    ))}
+                    {calloutsAfter.map((c, i) => (
+                      <Callout key={i} text={c.text} x={c.x} y={c.y} isGood={true} />
+                    ))}
+                  </>
+                )}
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
 
-        {/* Bottom metrics */}
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap: 12, marginTop: 14 }}>
-          {[
-            { label: "INTEGRATION COST", before: "$20 / verification", after: "$0 native call" },
-            { label: "COLLATERAL",        before: "300%+ required",     after: "125% with score" },
-            { label: "TRUST LATENCY",     before: "3.2s per protocol",  after: "<10ms (onchain read)" },
-          ].map((m) => (
-            <div key={m.label} style={{
-              padding: "16px 20px", borderRadius: 12,
-              border: `1px solid ${isBefore ? "rgba(248,113,113,0.12)" : "rgba(169,221,211,0.12)"}`,
-              background: isBefore ? "rgba(248,113,113,0.02)" : "rgba(169,221,211,0.03)",
-              transition: "all 0.5s ease",
-            }}>
-              <div style={{ fontSize: 8, letterSpacing: ".2em", opacity: 0.35, marginBottom: 6, fontWeight: 700 }}>{m.label}</div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: isBefore ? "#f87171" : "#a9ddd3", transition: "color 0.5s" }}>
-                {isBefore ? m.before : m.after}
-              </div>
-            </div>
+        {/* Upgraded Stat Cards */}
+        <div style={{ 
+          display: "grid", 
+          gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", 
+          gap: "24px", 
+          marginTop: "40px" 
+        }}>
+          {currentStats.map((stat, i) => (
+            <StatCard key={stat.label} {...stat} />
           ))}
         </div>
+
       </div>
     </section>
   );
