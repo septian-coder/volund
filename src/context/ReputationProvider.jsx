@@ -7,6 +7,7 @@ import { calcPoHLevel } from '../utils/onchain';
 import { calculateScore as calcScore } from '../utils/scoreCalculator';
 import { ethers } from 'ethers';
 import { fetchOnchainData } from '../utils/onchain';
+import { BADGES } from '../constants';
 
 async function resolveBasename(address) {
   let checksumAddr;
@@ -242,6 +243,18 @@ export const ReputationProvider = ({ children }) => {
   useEffect(() => {
     if (!onchainData) return;
 
+    let common = 0, uncommon = 0, rare = 0, epic = 0, legendary = 0;
+    Object.keys(claimedBadges).forEach(id => {
+      const bDef = BADGES.find(b => b.id === id);
+      if (bDef) {
+        if (bDef.rarity === "Common") common++;
+        else if (bDef.rarity === "Uncommon") uncommon++;
+        else if (bDef.rarity === "Rare") rare++;
+        else if (bDef.rarity === "Epic") epic++;
+        else if (bDef.rarity === "Legendary") legendary++;
+      }
+    });
+
     const walletData = {
       txCount: onchainData.txCount || 0,
       ageMonths: onchainData.walletAgeMo || 0,
@@ -261,6 +274,11 @@ export const ReputationProvider = ({ children }) => {
       twitter: social.twitter,
       discord: social.discord,
       badgeCount: Object.keys(claimedBadges).length,
+      commonBadges: common,
+      uncommonBadges: uncommon,
+      rareBadges: rare,
+      epicBadges: epic,
+      legendaryBadges: legendary,
       pohLevel: pohLevel,
       linkedCount: (social.github?.connected ? 1 : 0) + (social.twitter?.connected ? 1 : 0) + (social.discord?.connected ? 1 : 0),
     };
