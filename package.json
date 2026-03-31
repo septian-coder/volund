@@ -10,10 +10,13 @@
   },
   "dependencies": {
     "@rainbow-me/rainbowkit": "^2.2.10",
+    "@tanstack/react-query": "^5.95.2",
+    "dotenv": "^17.3.1",
     "ethers": "^6.16.0",
     "framer-motion": "^12.36.0",
     "lucide-react": "^0.577.0",
     "react": "^18.2.0",
+    "react-confetti": "^6.4.0",
     "react-countup": "^6.5.3",
     "react-dom": "^18.2.0",
     "recharts": "^3.8.0",
@@ -24,5 +27,18 @@
     "@vitejs/plugin-react": "^4.2.1",
     "vite": "^5.1.4",
     "vite-plugin-pwa": "^1.2.0"
-  }
+  },
+  "description": "",
+  "main": "vite.config.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/septian-coder/volund.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/septian-coder/volund/issues"
+  },
+  "homepage": "https://github.com/septian-coder/volund#readme"
 }

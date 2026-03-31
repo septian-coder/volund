@@ -1,6 +1,8 @@
+import CONTRACTS from "./contracts.json";
+
 // ── Contract & Network ────────────────────────────────────────────────────────
 export const ETH_MAINNET = "0x14a34"; // Base Sepolia
-export const BADGE_CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000000";
+export const BADGE_CONTRACT_ADDRESS = CONTRACTS.VOLUND_BADGE;
 export const BADGE_API_URL = "https://api.volund.io/badge/sign";
 export const ETH_RPC = "https://sepolia.base.org";
 export const BADGE_ABI = [
@@ -13,23 +15,23 @@ export const BADGE_ABI = [
 
 // ── Badges ────────────────────────────────────────────────────────────────────
 export const BADGES = [
-  { id:"b1", name:"First Steps",    sym:"I",    rarity:"Common",    min:0,   days:8,   total:30, desc:"Connected wallet for the first time" },
-  { id:"b2", name:"Early Mover",    sym:"II",   rarity:"Common",    min:0,   days:21,  total:30, desc:"Joined during Volund devnet phase" },
-  { id:"b3", name:"Trusted Agent",  sym:"III",  rarity:"Rare",      min:500, days:33,  total:45, desc:"Maintained score above 500 for 30 days" },
-  { id:"b4", name:"DeFi Dabbler",   sym:"IV",   rarity:"Rare",      min:500, days:40,  total:45, desc:"Completed 5+ DeFi interactions" },
-  { id:"b5", name:"Chain Veteran",  sym:"V",    rarity:"Epic",      min:700, days:52,  total:60, desc:"Wallet age > 2 years with consistent activity" },
-  { id:"b6", name:"Rialo Pioneer",  sym:"VI",   rarity:"Epic",      min:700, days:55,  total:60, desc:"First to use Rialo real-world data" },
-  { id:"b7", name:"Score Crusher",  sym:"VII",  rarity:"Epic",      min:700, days:58,  total:60, desc:"Scored above 700 reputation threshold" },
-  { id:"b8", name:"Onchain Legend", sym:"VIII", rarity:"Legendary", min:900, days:null,total:90, desc:"Score 900+ — the rarest of the rare" },
-  { id:"b9", name:"Rialo OG",       sym:"IX",   rarity:"Legendary", min:900, days:null,total:90, desc:"Elite pioneer of the Rialo ecosystem" },
+  { id:"b1", name:"First Steps",    sym:"I",    rarity:"Common",    percent: 82, min:0,   metrics: {}, desc:"Connected wallet for the first time" },
+  { id:"b2", name:"Early Mover",    sym:"II",   rarity:"Common",    percent: 64, min:0,   metrics: { walletAgeMo: 1 }, desc:"Joined during Volund devnet phase" },
+  { id:"b3", name:"Trusted Agent",  sym:"III",  rarity:"Rare",      percent: 24, min:500, metrics: { txCount: 50 }, desc:"Maintained score above 500 with consistent tx history" },
+  { id:"b4", name:"DeFi Architect", sym:"IV",   rarity:"Rare",      percent: 18, min:500, metrics: { liquidityScore: 40 }, desc:"Advanced liquidity positioning detected" },
+  { id:"b5", name:"Chain Veteran",  sym:"V",    rarity:"Epic",      percent: 8,  min:700, metrics: { walletAgeMo: 24 }, desc:"Wallet age > 2 years with high temporal heat" },
+  { id:"b6", name:"Rialo OG",       sym:"VI",   rarity:"Epic",      percent: 5,  min:700, metrics: { rialoLinked: true }, desc:"Verified link with Rialo institutional credit" },
+  { id:"b7", name:"Governance Titan", sym:"VII", rarity:"Epic",      percent: 3,  min:700, metrics: { vouchCount: 5 }, desc:"High social trust weight via the Volund graph" },
+  { id:"b8", name:"Onchain Legend", sym:"VIII", rarity:"Legendary", percent: 1.2, min:850, metrics: { txCount: 200, walletAgeMo: 36 }, desc:"Volund tier status with deep historical footprint" },
+  { id:"b9", name:"System Oracle",  sym:"IX",   rarity:"Legendary", percent: 0.5, min:950, metrics: { zkVerified: true, score: 950 }, desc:"The ultimate reputation benchmark" },
 ];
 
 // ── Rarity styles ─────────────────────────────────────────────────────────────
 export const RS = {
-  Common:    { color:"#c8b89a", border:"rgba(200,184,154,0.4)" },
-  Rare:      { color:"#b8d4f0", border:"rgba(184,212,240,0.4)" },
-  Epic:      { color:"#a9ddd3", border:"rgba(169,221,211,0.4)" },
-  Legendary: { color:"var(--text)", border:"rgba(232,227,213,0.6)" },
+  Common:    { color:"#CD7F32", border:"rgba(205,127,50,0.4)" },
+  Rare:      { color:"#B0C4DE", border:"rgba(176,196,222,0.4)" },
+  Epic:      { color:"#7DF9FF", border:"rgba(125,249,255,0.4)" },
+  Legendary: { color:"#a9ddd3", border:"rgba(169,221,211,0.6)" },
 };
 
 // ── Landing page data ─────────────────────────────────────────────────────────

@@ -1,0 +1,92 @@
+/* Volund — Design Tokens */
+
+:root {
+  /* ── DARK MODE (default) ── */
+  --bg-primary:      #010101;   /* main background — pure near-black */
+  --bg-secondary:    #0d0d0d;   /* cards, panels */
+  --bg-elevated:     #111111;   /* modals, dropdowns */
+  --bg-overlay:      #161616;   /* hover fills, subtle surfaces */
+
+  --text-primary:    #e8e3d5;   /* warm cream — ALL body text */
+  --text-secondary:  #b8b3a7;   /* dimmer cream — labels, subtext */
+  --text-tertiary:   #706b61;   /* very dim — placeholders, disabled */
+
+  --accent:          #a9ddd3;   /* mint-teal — buttons, highlights, active states */
+  --accent-dim:      #4a9d93;   /* darker mint — borders on hover, secondary accents */
+  --accent-glow:     rgba(169, 221, 211, 0.12);
+  --accent-border:   rgba(169, 221, 211, 0.25);
+
+  --border-subtle:   rgba(232, 227, 213, 0.07);  /* cream hairline */
+  --border-default:  rgba(169, 221, 211, 0.25);  /* active/focused border */
+
+  /* ── SCORE TIER COLORS ── */
+  --tier-unverified: #555555;
+  --tier-bronze:     #CD7F32;
+  --tier-silver:     #A8B4BC;
+  --tier-gold:       #F5C842;
+  --tier-platinum:   #B0C4DE;
+  --tier-diamond:    #7DF9FF;
+  --tier-volund:     #a9ddd3;    /* legendary = brand mint */
+
+  /* ── STATUS COLORS ── */
+  --success:  #a9ddd3;
+  --warning:  #F5C842;
+  --error:    #FF4D4D;
+  --info:     #60B8FF;
+
+  /* ── TYPOGRAPHY ── */
+  --font-display: 'Space Mono', 'IBM Plex Mono', monospace;  /* headings, scores, numbers */
+  --font-body:    'Inter', system-ui, sans-serif;             /* body text */
+  --font-mono:    'Space Mono', monospace;                    /* code, addresses, tx hashes */
+
+  /* ── SPACING & SHAPE ── */
+  --radius-tag:    4px;   /* tags, chips */
+  --radius-button: 6px;   /* buttons */
+  --radius-card:   8px;   /* cards, panels */
+  --radius-sm:  4px;
+  --radius-md:  6px;
+  --radius-lg:  8px;
+  --radius-xl:  12px;
+  --radius-full: 9999px;
+
+  /* ── FONT WEIGHTS ── */
+  --font-weight-body:    400;
+  --font-weight-label:   500;
+  --font-weight-heading: 700;
+  --logo-filter: none;
+}
+
+/* ── LIGHT MODE ── */
+[data-theme="light"] {
+  --bg-primary:      #fcfcfb;   /* slate-stone white */
+  --bg-secondary:    #f3f3f0;
+  --bg-elevated:     #eaeae6;
+  --bg-overlay:      #e5e5e0;
+
+  --text-primary:    #0a0a09;
+  --text-secondary:  #444440;
+  --text-tertiary:   #858580;
+
+  --accent:          #168071;   /* darker, richer mint for light bg contrast */
+  --accent-dim:      #0e5e53;
+  --accent-glow:     rgba(22, 128, 113, 0.08);
+  --accent-border:   rgba(22, 128, 113, 0.20);
+
+  --border-subtle:   rgba(10, 10, 9, 0.06);
+  --border-default:  rgba(22, 128, 113, 0.25);
+
+  --success:  #168071;
+  --warning:  #9e7700;
+  --error:    #d32f2f;
+  --info:     #1976d2;
+  --logo-filter: invert(1) brightness(0.1);
+}
+
+/* ── GLOBALS & UTILITIES ── */
+[data-theme] {
+  --attested: #a855f7;
+}
+
+[data-theme="light"] {
+  --attested: #8b5cf6;
+}

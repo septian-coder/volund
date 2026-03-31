@@ -84,21 +84,68 @@ export async function fetchOnchainData(address) {
   }
 
   let ens = null, ensAvatar = null;
+
+  // Try Base mainnet first for Basenames (.base.eth)
   try {
-    const query = `{"query":"{domains(where:{resolvedAddress:\\"${address.toLowerCase()}\\"},first:1){name, resolver{texts}}}"}`;
-    const r = await Promise.race([
-      fetch("https://api.thegraph.com/subgraphs/name/ensdomains/ens", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: query,
-      }).then(r => r.json()),
-      new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 4000)),
+    const { ethers: ethLib } = await import("ethers");
+    // Checksum the address (MetaMask may return lowercase)
+    let checksumAddr;
+    try { checksumAddr = ethLib.getAddress(address); } catch { checksumAddr = address; }
+
+    const baseProvider = new ethLib.JsonRpcProvider('https://mainnet.base.org');
+
+    // Step 1: Check NFT ownership on Basenames ERC-721 contract
+    const BASENAME_NFT = ethLib.getAddress("0x03c4738ee98ae44591e1a4a4f3cab6641d95dd9a");
+    const nftContract = new ethLib.Contract(BASENAME_NFT, ["function balanceOf(address owner) view returns(uint256)"], baseProvider);
+    const balance = await Promise.race([
+      nftContract.balanceOf(checksumAddr),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 6000)),
     ]);
-    const domain = r?.data?.domains?.[0];
-    if (domain) {
-      ens = domain.name;
-      ensAvatar = await fetch(`https://metadata.ens.domains/mainnet/avatar/${ens}`)
-        .then(rx => rx.ok ? rx.url : null).catch(() => null);
+    
+    if (balance > 0n) {
+      // They own a Basename! Try reverse resolution for the actual name
+      try {
+        const addrLower = checksumAddr.toLowerCase().replace('0x', '');
+        const reverseNode = ethLib.namehash(`${addrLower}.addr.reverse`);
+        const L2_RESOLVER = ethLib.getAddress("0xc6d566a56a1aff6508b41f6c90ff131615583bcd");
+        const resolver = new ethLib.Contract(L2_RESOLVER, ["function name(bytes32 node) view returns (string)"], baseProvider);
+        const baseName = await Promise.race([
+          resolver.name(reverseNode),
+          new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 4000)),
+        ]);
+        if (baseName && baseName.length > 0) {
+          ens = baseName;
+        }
+      } catch (e) {}
+
+      if (!ens) ens = "Basename (Hidden)";
     }
   } catch (e) {}
+
+  // Fallback: try ENS on Ethereum mainnet
+  if (!ens) {
+    try {
+      const query = `{"query":"{domains(where:{resolvedAddress:\\"${address.toLowerCase()}\\"},first:1){name, resolver{texts}}}"}`;
+      const r = await Promise.race([
+        fetch("https://api.thegraph.com/subgraphs/name/ensdomains/ens", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: query,
+        }).then(r => r.json()),
+        new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 4000)),
+      ]);
+      const domain = r?.data?.domains?.[0];
+      if (domain) {
+        ens = domain.name;
+      }
+    } catch (e) {}
+  }
+
+  // Resolve avatar if we found a name
+  if (ens) {
+    try {
+      ensAvatar = await fetch(`https://metadata.ens.domains/mainnet/avatar/${ens}`)
+        .then(rx => rx.ok ? rx.url : null).catch(() => null);
+    } catch (e) {}
+  }
 
   return { balance, txCount, walletAgeMo, ens, ensAvatar };
 }
@@ -107,7 +154,7 @@ import { calculateScore, realDataToSimInput, getTier as getTierCalc } from "./sc
 
 // ── PoH Level Calculation ───────────────────────────────────────────────────
 
-export function calcPoHLevel(social = {}, onchain = {}) {
+export function calcPoHLevel(social = {}) {
   const matureConnections = [
     social.github?.connected && (social.github?.ageMonths || 0) >= 3,
     social.twitter?.connected && (social.twitter?.ageMonths || 0) >= 3,
@@ -119,7 +166,7 @@ export function calcPoHLevel(social = {}, onchain = {}) {
   // Level 1: 2+ mature social connections
   if (matureConnections >= 2) newLevel = 1;
 
-  // Level 2: Level 1 DONE + has ENS
+  // Level 2: Level 1 DONE + has Basename
   if (newLevel >= 1 && social.ens?.hasENS === true) newLevel = 2;
 
   // Level 3: Level 2 DONE + WorldCoin verified
@@ -129,8 +176,7 @@ export function calcPoHLevel(social = {}, onchain = {}) {
   const reputableVouches = (social.vouches || []).filter(v => v.score >= 400).length;
   if (newLevel >= 3 && reputableVouches >= 3) newLevel = 4;
 
-  // Fallback to social.pohLevel if provided, otherwise computed level
-  return Math.max(newLevel, Number(social.pohLevel ?? 0));
+  return newLevel;
 }
 
 // ── Score calculation ─────────────────────────────────────────────────────────

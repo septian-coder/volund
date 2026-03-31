@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import Confetti from "react-confetti";
 import { readCache, writeCache, clearCache, formatCacheAge } from "../../hooks/useScoreCache";
 import { requestNotificationPermission, notifyExpiringBadges, getExpiringBadges } from "../../hooks/useNotifications";
 import { BADGES, RS, ETH_MAINNET, BADGE_CONTRACT_ADDRESS, BADGE_API_URL, BADGE_ABI } from "../../constants";
@@ -6,6 +7,8 @@ import { useBreakpoint } from "../../hooks/useBreakpoint";
 import { useEase } from "../../hooks/useInView";
 import { fetchOnchainData, shortAddr, generateHistory } from "../../utils/onchain";
 import { calculateScore as calcScore, getTier } from "../../utils/scoreCalculator";
+import { VOLUND_BADGE } from "../../constants/contracts.json";
+import ABIS from "../../constants/abis.json";
 import Logo from "../../components/Logo";
 import Tag from "../../components/Tag";
 import ThemeToggle from "../../components/ThemeToggle";
@@ -33,7 +36,9 @@ import ScoreCapWarning from "../../components/ScoreCapWarning";
 import WorldCoinModal from "../../components/WorldCoinModal";
 import PeerVouching from "../../components/PeerVouching";
 import PoHLevelAccordion from "../../components/PoHLevelAccordion";
+import TransactionHistory from "../../components/TransactionHistory";
 import { useReputation } from "../../context/useReputation";
+import { useAccount, useWriteContract } from 'wagmi';
 import { ethers } from "ethers";
 import { 
   BarChart2, 
@@ -43,7 +48,8 @@ import {
   Fingerprint, 
   Globe, 
   SlidersHorizontal, 
-  Trophy 
+  Trophy,
+  Shield 
 } from "lucide-react";
 
 
@@ -62,6 +68,12 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
   const [lastTier, setLastTier] = useState(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [upgradeTier, setUpgradeTier] = useState("");
+  const [showConfetti, setShowConfetti] = useState(false);
+
+  const triggerConfetti = () => {
+    setShowConfetti(true);
+    setTimeout(() => setShowConfetti(false), 6000);
+  };
 
   const [wallet, setWallet] = useState(null);
   const [connecting, setConnecting] = useState(false);
@@ -69,10 +81,6 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
   const [wrongNetwork, setWrongNetwork] = useState(false);
   const [hasMetaMask, setHasMetaMask] = useState(false);
   const isLive = typeof window !== "undefined" && !!window.ethereum;
-
-  const [onchainData, setOnchainData] = useState(null);
-  const [loadingData, setLoadingData] = useState(false);
-  const [loadStep, setLoadStep] = useState("");
 
   const [showFaucetConfirm, setShowFaucetConfirm] = useState(false);
   const [pendingFaucetAddr, setPendingFaucetAddr] = useState(null);
@@ -88,58 +96,33 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
     pohLevel: contextPohLevel, 
     updateSocial, 
     disconnectSocial,
-    initializeSocial
+    initializeSocial,
+    isRegistered,
+    registerOnchain,
+    vouchOnchain,
+    syncPohOnchain,
+    pohSyncing,
+    onchainScore,
+    refreshOnchainScore,
+    syncScoreOnchain,
+    scoreSyncing,
+    onchainData,
+    localScore: scoreVal,
+    computed,
+    loadData,
+    loadingData,
+    loadStep,
+    claimedBadges,
+    setClaimedBadges
   } = useReputation();
 
-  // Badge claim state
-  // claimedBadges: { [badgeId]: { claimed: bool, daysLeft: number } }
-  const [claimedBadges, setClaimedBadges] = useState({});
+  const { writeContractAsync: writeBadgeAsync } = useWriteContract();
+
   const [claimingId, setClaimingId] = useState(null);
   const [claimError, setClaimError] = useState("");
   const [claimSuccess, setClaimSuccess] = useState("");
 
-  // Map real data to the requested walletData shape
-  const walletData = onchainData ? {
-    txCount: onchainData.txCount || 0,
-    walletAgeMonths: onchainData.walletAgeMo || 0,
-    ethBalance: onchainData.balance || 0,
-    rloBalance: social.rialoLinked ? 500 : 0,
-    uniqueContracts: Math.min(Math.floor((onchainData.txCount || 0) * 0.3), 30),
-    chainCount: social.multiChain || 1,
-    gasSpentEth: parseFloat(((onchainData.txCount || 0) * 0.0005).toFixed(4)),
-    swapVolumeUsd: (onchainData.txCount || 0) * 50, // Mock
-    lpDays: (onchainData.txCount || 0) > 50 ? 30 : 0, // Mock
-    hasActiveLending: (onchainData.txCount || 0) > 100, // Mock
-    defiTxPerMonth: Math.floor((onchainData.txCount || 0) / 12), // Mock
-    isCleanHistory: true,
-    farmingProtocols: (onchainData.txCount || 0) > 200 ? 5 : 0, // Mock
-    hasENS: !!onchainData.ens,
-    github: { 
-      connected: !!social.github?.connected, 
-      ageMonths: social.github?.ageMonths || 0, 
-      repoCount: social.github?.repos || 0 
-    },
-    twitter: { 
-      connected: !!social.twitter?.connected, 
-      ageMonths: social.twitter?.ageMonths || 0,
-      handle: social.twitter?.handle,
-      followerCount: social.twitter?.followerCount || 0,
-      isVerified: !!social.twitter?.isVerified
-    },
-    discord: { 
-      connected: !!social.discord?.connected, 
-      membershipMonths: social.discord?.membershipMonths || 0 
-    },
-    badgeCount: Object.keys(claimedBadges).length,
-    hasRareBadge: Object.values(claimedBadges).some(b => b.rarity === 'Rare'),
-    hasEpicBadge: Object.values(claimedBadges).some(b => b.rarity === 'Epic'),
-    hasDivineBadge: Object.values(claimedBadges).some(b => b.rarity === 'Divine'),
-    badgeBonusTotal: 0
-  } : null;
-
-  const computed   = walletData ? calcScore(walletData, { ...social, pohLevel: contextPohLevel, attested: !!attestationId }) : null;
   const rawScore   = computed?.rawTotal ?? 0;
-  const scoreVal   = computed?.total ?? 0;
   const isCapped   = computed?.isCapped ?? false;
   const gateMsg    = computed?.activeGate;
   const pohLevel   = contextPohLevel; // Use from context
@@ -155,6 +138,38 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
 
   const handleConnect = async (id) => {
     setConnectingId(id);
+
+    // For Basename: ALWAYS try real on-chain lookup (only needs public RPC, not wallet provider)
+    if (id === "ens") {
+      if (wallet) {
+        // We have a wallet address — do real on-chain Basename lookup
+        try {
+          console.log("[Basename] Looking up for wallet:", wallet);
+          const result = await resolveBasename(wallet);
+          updateSocial("ens", result);
+          setConnectingId(null);
+          if (result.hasENS) {
+            addToast(30, "Basename");
+          } else {
+            addToast(0, "No Basename found");
+          }
+        } catch (err) {
+          console.error("Basename resolve error:", err);
+          updateSocial("ens", { hasENS: false, domain: null });
+          setConnectingId(null);
+          addToast(0, "Basename lookup failed");
+        }
+      } else {
+        // No wallet address at all — use demo data
+        await new Promise(r => setTimeout(r, 1500));
+        updateSocial("ens", { hasENS: true, domain: "demo.base.eth" });
+        setConnectingId(null);
+        addToast(30, "Basename");
+      }
+      return;
+    }
+
+    // All other platforms: demo simulation
     await new Promise(r => setTimeout(r, 1500));
     
     let newData = { connected: true };
@@ -169,9 +184,6 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
     } else if (id === "discord") {
       newData = { ...newData, membershipMonths: 6, details: "6 months member · Early Adopter" };
       points = 51;
-    } else if (id === "ens") {
-      newData = { hasENS: true, domain: "demo.eth" };
-      points = 30;
     }
 
     updateSocial(id, newData);
@@ -188,15 +200,30 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
     addToast(200, "World ID");
   };
 
-  const handleVouch = (addr, isVoucher = false) => {
-    const newVouch = {
-      address: addr,
-      score: isVoucher ? 450 : 20, // Mock score
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    };
-    updateSocial("vouches", [...(social.vouches || []), newVouch]);
+  const handleVouch = async (addr, isVoucher = false) => {
     if (!isVoucher) {
-      addToast(10, "Voucher system");
+      // Mock inbound vouch for demo purposes if needed
+      const newVouch = {
+        address: addr,
+        score: 20,
+        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      };
+      updateSocial("vouches", [...(social.vouches || []), newVouch]);
+      addToast(10, "Passive trust");
+      return;
+    }
+
+    // Real on-chain vouching for someone else
+    try {
+      const txHash = await vouchOnchain(addr);
+      if (txHash) {
+        addToast(30, "Vouch success!");
+        // We don't manually update local state here because the ReputationProvider
+        // will auto-refresh the on-chain vouches array via useReadContract.
+      }
+    } catch (err) {
+      console.error("On-chain vouch failed:", err);
+      addToast(0, "Vouch cancelled");
     }
   };
 
@@ -325,6 +352,11 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
   }
 
   const handleDemoAction = (action) => {
+    if (!wallet) {
+      setWallet("0x3fb1c72...demo");
+      setOnchainData({ balance: 0.1, txCount: 1, walletAgeMo: 0 });
+    }
+
     // Up the score in social state for simple reactivity
     if (action.label.includes("GitHub")) {
       updateSocial("github", { connected: true, ageMonths: 24, repos: 12 });
@@ -333,12 +365,12 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
     }
     
     // Always trigger toast and animation
-    addToast(action.points, action.sub);
+    addToast(action.points, action.label); // Use label for toast instead of sub
     
     // Simulate complex onchain change by nudging txCount if needed
     if (action.sub.includes("DeFi") || action.sub.includes("LP")) {
       setOnchainData(prev => ({
-        ...prev,
+        ...(prev || { balance: 0.1, txCount: 0, walletAgeMo: 0 }),
         txCount: (prev?.txCount || 0) + 1
       }));
     }
@@ -387,50 +419,6 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
     disconnectWallet();
   }
 
-  async function loadData(addr) {
-    setLoadingData(true);
-    setFromCache(false);
-    setLoadStep("connecting to Base Sepolia...");
-    try {
-      setLoadStep("reading wallet data...");
-      const data = await fetchOnchainData(addr);
-      setLoadStep("computing score...");
-      await new Promise(r => setTimeout(r, 400));
-      setOnchainData(data);
-
-      // Re-create walletData locally for calculation if needed, or rely on state update
-      // Better to compute score using a local ephemeral walletData to avoid race conditions
-      const tempWalletData = {
-        txCount: data.txCount || 0,
-        walletAgeMonths: data.walletAgeMo || 0,
-        ethBalance: data.balance || 0,
-        rloBalance: social.rialoLinked ? 500 : 0,
-        uniqueContracts: Math.min(Math.floor((data.txCount || 0) * 0.3), 30),
-        chainCount: social.multiChain || 1,
-        gasSpentEth: parseFloat(((data.txCount || 0) * 0.0005).toFixed(4)),
-      };
-
-      const sc = calcScore(tempWalletData, social).total;
-      const claimed = await fetchClaimedBadges(addr, sc);
-    } finally {
-      setLoadingData(false);
-      setLoadStep("");
-    }
-  }
-
-  async function resolveENS(address) {
-    try {
-      const mainnetProvider = new ethers.JsonRpcProvider('https://eth.llamarpc.com');
-      const ensName = await mainnetProvider.lookupAddress(address);
-      if (ensName) {
-        return { hasENS: true, domain: ensName };
-      }
-      return { hasENS: false, domain: null };
-    } catch (err) {
-      console.error('ENS lookup failed:', err);
-      return { hasENS: false, domain: null };
-    }
-  }
 
   async function connectWallet() {
     setWalletError("");
@@ -450,14 +438,6 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
       const addr = accounts[0];
       setWallet(addr);
       
-      // Real ENS Lookup
-      resolveENS(addr).then(ens => {
-        updateSocial('ens', ens);
-        if (ens.hasENS) {
-          addToast(30, "ENS Verified");
-        }
-      });
-
       await checkNetwork(addr);
     } catch(err) {
       if (err.code === 4001) {
@@ -477,7 +457,7 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
     await new Promise(r => setTimeout(r, 600));
     setLoadStep("computing score...");
     await new Promise(r => setTimeout(r, 600));
-    const demoData = { balance: 0.85, txCount: 42, walletAgeMo: 14, ens: "demo.eth" };
+    const demoData = { balance: 0.85, txCount: 42, walletAgeMo: 14, ens: "demo.base.eth" };
     setOnchainData(demoData);
     
     const demoWalletData = {
@@ -540,101 +520,115 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
   // Fetch which badges user already holds onchain (or mock in demo)
   // Returns the badges object so callers can use it for caching.
   async function fetchClaimedBadges(addr, scoreValue) {
-    if (!window.ethereum || BADGE_CONTRACT_ADDRESS === "0x0000000000000000000000000000000000000000") {
-      // Demo mode — simulate badges based on score
+    if (!isLive) {
       const demo = {};
-      BADGES.forEach(b => {
-        if (scoreValue >= b.min) {
-          demo[b.id] = { claimed: true, daysLeft: b.total - Math.floor(Math.random()*15) };
-        } else {
-          demo[b.id] = { claimed: false, daysLeft: null };
-        }
-      });
+      BADGES.forEach(b => demo[b.id] = { claimed: scoreValue >= b.min, daysLeft: 300 });
       setClaimedBadges(demo);
       return demo;
     }
-    // Real contract read via eth_call
+
     try {
       const badges = {};
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const contract = new ethers.Contract(VOLUND_BADGE, ABIS.VolundBadge, provider);
+
+      // Live read: get all badge IDs this wallet owns from the contract
+      let ownedBadgeIds = [];
+      try {
+        ownedBadgeIds = await contract.getBadges(addr);
+      } catch(e) {
+        console.warn("getBadges() call failed, falling back to individual checks:", e);
+      }
+
+      // Check each defined badge against on-chain state
       for (const b of BADGES) {
-        const idNum = parseInt(b.id.replace("b",""));
-        const hasBadgeData = "0x" + "85f92ea5" +
-          addr.slice(2).padStart(64,"0") +
-          idNum.toString(16).padStart(64,"0");
-        const hasRes = await rpcCall("eth_call", [{ to: BADGE_CONTRACT_ADDRESS, data: hasBadgeData }, "latest"]);
-        const hasB = parseInt(hasRes, 16) === 1;
-        let daysLeft = null;
-        if (hasB) {
-          const daysData = "0x" + "07b04f45" +
-            addr.slice(2).padStart(64,"0") +
-            idNum.toString(16).padStart(64,"0");
-          const daysRes = await rpcCall("eth_call", [{ to: BADGE_CONTRACT_ADDRESS, data: daysData }, "latest"]);
-          daysLeft = parseInt(daysRes, 16);
+        try {
+          const owned = ownedBadgeIds.includes(b.id) || (await contract.hasClaimed(addr, b.id));
+          badges[b.id] = { claimed: !!owned, daysLeft: owned ? 365 : null };
+        } catch(e) {
+          badges[b.id] = { claimed: false, daysLeft: null };
         }
-        badges[b.id] = { claimed: hasB, daysLeft };
       }
       setClaimedBadges(badges);
       return badges;
-    } catch(e) { console.error("fetchClaimedBadges:", e); return {}; }
+    } catch(e) { 
+      console.error("fetchClaimedBadges error:", e); 
+      return {}; 
+    }
   }
 
   async function claimBadge(b) {
     setClaimError(""); setClaimSuccess("");
     setClaimingId(b.id);
-    const badgeIdNum = parseInt(b.id.replace("b",""));
-    const isContractDeployed = BADGE_CONTRACT_ADDRESS !== "0x0000000000000000000000000000000000000000";
 
     try {
-      // Use demo mode if: no wallet, no contract deployed, or no score yet
-      if (!isLive || !isContractDeployed || !scoreVal) {
+      if (!isLive) {
         await new Promise(r => setTimeout(r, 1200));
-        setClaimedBadges(prev => ({
-          ...prev,
-          [b.id]: { claimed: true, daysLeft: b.total }
-        }));
+        setClaimedBadges(prev => ({ ...prev, [b.id]: { claimed: true, daysLeft: 365 } }));
         setClaimSuccess(`${b.name} claimed! (demo)`);
         setTimeout(() => setClaimSuccess(""), 3000);
         return;
       }
 
-      // ── Production flow ──────────────────────────────────────────────────
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(VOLUND_BADGE, ABIS.VolundBadge, signer);
 
-      // 1. Request signature from backend
-      const sigRes = await fetch(BADGE_API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address: wallet, badgeId: badgeIdNum }),
-      }).then(r => r.json());
+      // Map rarity string to uint8
+      const rarities = { "Common": 0, "Rare": 1, "Epic": 2, "Legendary": 3 };
+      const rarityNum = rarities[b.rarity] || 0;
 
-      if (!sigRes.signature) throw new Error(sigRes.error || "Backend signing failed");
+      // The fee is essentially 0 since we used different IDs when deploying, but we'll send a tiny amount to simulate gas/fee dynamically
+      const payableValue = ethers.parseEther("0.0001");
 
-      // 2. Encode tx data manually (no ethers.js required in browser)
-      // claimBadge(uint8 badgeId, uint16 score, bytes sig)
-      // selector: keccak256("claimBadge(uint8,uint16,bytes)") = 0x...
-      // Use eth_sendTransaction with ABI-encoded data
-      const abi = ["function claimBadge(uint8,uint16,bytes)"];
-      const iface = new (await import("https://esm.sh/ethers@6")).Interface(abi);
-      const data = iface.encodeFunctionData("claimBadge", [
-        badgeIdNum, sigRes.score, sigRes.signature
-      ]);
-
-      // 3. Send transaction
-      const txHash = await window.ethereum.request({
-        method: "eth_sendTransaction",
-        params: [{ from: wallet, to: BADGE_CONTRACT_ADDRESS, data, chainId: "0x14a34" }],
+      const txHash = await writeBadgeAsync({
+        address: VOLUND_BADGE,
+        abi: ABIS.VolundBadge,
+        functionName: 'claimBadge',
+        args: [b.id, rarityNum],
+        value: payableValue
       });
-
-      setClaimSuccess(`${b.name} claimed! Tx: ${txHash.slice(0,10)}…`);
-      setTimeout(() => { fetchClaimedBadges(wallet, scoreVal); setClaimSuccess(""); }, 4000);
+      
+      setClaimSuccess(`Claiming ${b.name}... Tx: ${txHash.slice(0,10)}…`);
+      
+      await new Promise(r => setTimeout(r, 3000)); // Wait for 1 confirmation approx (Base has 2s blocks)
+      
+      setClaimSuccess(<span style={{ display:"flex", alignItems:"center", gap:8 }}>{b.name} claimed! <a href={`https://sepolia.basescan.org/tx/${txHash}`} target="_blank" rel="noreferrer" style={{color:"#a9ddd3", textDecoration:"underline", fontWeight:700}}>View Receipt ↗</a></span>);
+      triggerConfetti();
+      setTimeout(() => { fetchClaimedBadges(wallet, scoreVal); setClaimSuccess(""); }, 6000);
 
     } catch(e) {
-      const msg = e?.code === 4001 ? "Transaction rejected."
-        : e?.message?.includes("score_too_low") ? "Score too low for this badge."
-        : e?.message || "Claim failed. Try again.";
+      console.error(e);
+      const msg = e?.code === 4001 || e?.code === "ACTION_REJECTED" ? "Transaction rejected."
+        : e?.message?.includes("Insufficient payment") ? "Insufficient base fee."
+        : "Claim failed. Try again.";
       setClaimError(msg);
       setTimeout(() => setClaimError(""), 5000);
     } finally {
       setClaimingId(null);
+    }
+  }
+
+  async function publishScore() {
+    if (!wallet || !computed) return;
+    try {
+      const scoresObj = {
+        total: computed.total,
+        onchain: computed.categories.find(c => c.id === 'onchain')?.score || 0,
+        defi: computed.categories.find(c => c.id === 'defi')?.score || 0,
+        identity: computed.categories.find(c => c.id === 'identity')?.score || 0,
+        social: computed.categories.find(c => c.id === 'community')?.score || 0,
+        badges: computed.categories.find(c => c.id === 'badges')?.score || 0
+      };
+      const txHash = await syncScoreOnchain(wallet, scoresObj);
+      if (txHash) {
+        addToast(0, <span style={{ display:"flex", alignItems:"center", gap:8 }}>Score Synced! <a href={`https://sepolia.basescan.org/tx/${txHash}`} target="_blank" rel="noreferrer" style={{color:"#a9ddd3", textDecoration:"underline", fontWeight:700}}>View Receipt ↗</a></span>);
+        triggerConfetti();
+      }
+    } catch(err) {
+      console.error(err);
+      setWalletError("Failed to sync score: " + err.message);
+      setTimeout(() => setWalletError(""), 4000);
     }
   }
 
@@ -643,9 +637,9 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
     backdropFilter:"blur(32px) saturate(180%)",
     border: "1px solid var(--border)",
     borderRadius: 24, padding:"32px", 
-    transition: "all 0.6s cubic-bezier(0.23, 1, 0.32, 1)",
+    transition: "all 0.6s cubic-bezier(0.23, 1, 0.32, 1), background-color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease",
     position: "relative", overflow: "hidden",
-    boxShadow: "0 8px 32px -8px rgba(0,0,0,0.15)"
+    boxShadow: "var(--glass-shadow)"
   };
   const label = { fontSize:10, color:"var(--accent)", opacity:.8, letterSpacing:".2em", marginBottom:20, fontFamily:"'Inter',sans-serif", display:"block", textTransform: "uppercase", fontWeight: 800 };
 
@@ -793,7 +787,52 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
                   <span>⬡</span> cached · {formatCacheAge(cacheAge)}
                 </div>
               )}
+              
+              {isRegistered && (
+                <button 
+                  className="premium-button" 
+                  onClick={publishScore}
+                  disabled={scoreSyncing}
+                  style={{ padding: "8px 16px", fontSize: 11, marginLeft: "auto" }}
+                >
+                  {scoreSyncing ? "SYNCING TO ORACLE..." : "SYNC SCORE ON-CHAIN ⬡"}
+                </button>
+              )}
             </div>
+
+            {/* ── Registration Banner ────────────────────────────────────────── */}
+            {wallet && !isRegistered && (
+              <div className="glass-panel shiny-card" style={{ marginBottom: 40, padding: "32px", borderRadius: "24px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 24, background: "rgba(169, 221, 211, 0.05)", border: "1px solid var(--accent)", boxShadow: "0 0 24px rgba(169,221,211,0.1)" }}>
+                <div>
+                  <h3 style={{ fontSize: 20, color: "var(--accent)", fontWeight: 700, marginBottom: 8 }}>Register on Volund</h3>
+                  <p style={{ fontSize: 13, color: "var(--text-secondary)", maxWidth: 500, lineHeight: 1.6 }}>
+                    Your wallet is connected, but your identity is not registered on the Base Sepolia network. 
+                    Initialize your identity primitive to start building your reputation score.
+                  </p>
+                </div>
+                <button 
+                  onClick={async (e) => {
+                    const btn = e.currentTarget;
+                    btn.disabled = true;
+                    btn.innerText = "Confirming Transaction...";
+                    try {
+                      const txHash = await registerOnchain(social.ens?.domain || "");
+                      btn.innerText = "Tx Pending...";
+                      triggerConfetti();
+                      addToast(0, <span style={{ display:"flex", alignItems:"center", gap:8 }}>Identity Verified! <a href={`https://sepolia.basescan.org/tx/${txHash}`} target="_blank" rel="noreferrer" style={{color:"#a9ddd3", textDecoration:"underline", fontWeight:700}}>View Receipt ↗</a></span>);
+                    } catch(err) {
+                      btn.disabled = false;
+                      btn.innerText = "Registration Failed. Try again.";
+                    }
+                  }}
+                  className="premium-button" 
+                  style={{ padding: "14px 28px", fontSize: 13 }}
+                >
+                  INITIALIZE IDENTITY →
+                </button>
+              </div>
+            )}
+            {/* ── End Registration Banner ────────────────────────────────────── */}
 
             {/* Navbar Tabs */}
             <div style={{ display:"flex", borderBottom:"1px solid var(--border-subtle)", marginBottom:32, gap:32, overflowX:"auto", scrollbarWidth:"none" }}>
@@ -803,7 +842,7 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
                 {id:"identity", label:"IDENTITY HUB", icon:<Globe size={20} strokeWidth={1.5} color="#a9ddd3" />},
                 {id:"badges", label:"COLLECTION", icon:<Award size={20} strokeWidth={1.5} color="#a9ddd3" />},
                 {id:"simulator", label:"SIMULATOR", icon:<ArrowLeftRight size={20} strokeWidth={1.5} color="#a9ddd3" />},
-                {id:"access", label:"ACCESS", icon:<Wallet size={20} strokeWidth={1.5} color="#a9ddd3" />},
+                {id:"access", label:"PROTOCOLS", icon:<Shield size={20} strokeWidth={1.5} color="#a9ddd3" />},
               ].map(t=>(
                 <button key={t.id} onClick={()=>setTab(t.id)} style={{
                   padding:"12px 0 16px", background:"transparent", border:"none", borderBottom:tab===t.id?"2px solid var(--accent)":"2px solid transparent",
@@ -814,6 +853,29 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
                 </button>
               ))}
             </div>
+
+            {/* Sync Prompt for Protocols Tab */}
+            {tab === "access" && isRegistered && onchainScore < scoreVal && (
+              <div style={{ 
+                padding: "16px 24px", borderRadius: 16, background: "rgba(169,221,211,0.08)", border: "1px solid var(--accent)",
+                marginBottom: 32, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20,
+                animation: "fade-down 0.4s cubic-bezier(0.23, 1, 0.32, 1) both"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent)", animation: "pulse 2s infinite" }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)" }}>Synchronization Required</div>
+                    <div style={{ fontSize: 11, opacity: 0.6 }}>Your onchain score ({onchainScore} pts) is outdated. Sync now to unlock higher tier protocols.</div>
+                  </div>
+                </div>
+                <button onClick={publishScore} disabled={scoreSyncing} style={{ 
+                  padding: "8px 16px", borderRadius: 8, background: "var(--accent)", color: "var(--bg)", border: "none",
+                  fontSize: 10, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap"
+                }}>
+                  {scoreSyncing ? "SYNCING..." : "SYNC NOW ⬡"}
+                </button>
+              </div>
+            )}
 
             {tab==="score" && (
               <div className="stagger-container visible" style={{ position: "relative", minHeight: "400px" }}>
@@ -935,6 +997,15 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
                         )}
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, position: "relative" }}>
                           <ScoreRing score={score} tier={tier} />
+                          {isRegistered && (
+                            <div style={{ 
+                              position: "absolute", bottom: -8, left: "50%", transform: "translateX(-50%)",
+                              fontSize: 9, fontWeight: 800, letterSpacing: ".1em", color: "var(--text)", opacity: 0.4,
+                              background: "rgba(0,0,0,0.4)", padding: "2px 8px", borderRadius: 4, whiteSpace: "nowrap"
+                            }}>
+                              ON-CHAIN: {onchainScore}
+                            </div>
+                          )}
                           
                           {/* Score Gate Banner */}
                           {isCapped && (
@@ -1041,7 +1112,7 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
 
                       {/* Breakdown REDESIGN */}
                       <div style={{ gridColumn: isMobile ? "1" : "span 12", marginTop: 24 }}>
-                        <ScoreBreakdown categories={categories} walletData={walletData} />
+                        <ScoreBreakdown categories={categories} walletData={onchainData} />
                       </div>
 
                       {/* Identity Hub Link / Preview */}
@@ -1173,6 +1244,11 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
               </div>
             )}
 
+            {/* Transaction History — inside dashboard tab */}
+            {tab==="score" && onchainData && (
+              <TransactionHistory wallet={wallet} />
+            )}
+
 
             {tab==="poh" && (
               <div className="stagger-container visible">
@@ -1201,7 +1277,7 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
                       isActive={pohLevel === 1} 
                       currentPoh={pohLevel}
                       requirements={[
-                        { id: "ens", label: "Primary ENS Name registered", met: social.ens?.hasENS, actionLabel: social.ens?.hasENS ? "" : "Connect Wallet" }
+                        { id: "ens", label: "Primary Basename registered", met: social.ens?.hasENS, actionLabel: social.ens?.hasENS ? "" : "Connect Wallet" }
                       ]}
                       onAction={() => connectWallet()}
                     />
@@ -1380,8 +1456,19 @@ export default function ScoreApp({ onBack, canInstall, onInstall, theme, toggleT
         wallet={wallet}
       />
 
-      {/* Demo functionality for evaluation */}
-      <DemoControls onAction={handleDemoAction} />
+      {/* Demo functionality — only visible when no real wallet is connected */}
+      {!isLive && <DemoControls onAction={handleDemoAction} />}
+      {/* ── Confetti Explosion Overlay ── */}
+      {showConfetti && (
+        <Confetti 
+          width={typeof window !== "undefined" ? window.innerWidth : 1000} 
+          height={typeof window !== "undefined" ? window.innerHeight : 1000} 
+          recycle={false} 
+          numberOfPieces={600} 
+          gravity={0.15}
+          style={{ position: 'fixed', top: 0, left: 0, zIndex: 999999, pointerEvents: 'none' }} 
+        />
+      )}
     </div>
   );
 }

@@ -37,9 +37,9 @@ export default function PoHStatusCard({ currentLevel, rawScore, cappedScore, onU
           <div style={{ fontSize: 10, fontWeight: 800, color: "var(--text-secondary)", letterSpacing: "0.15em", marginBottom: 4 }}>
             PROOF OF HUMANITY
           </div>
-          <div style={{ 
-            fontSize: 20, 
-            fontWeight: 700, 
+          <div style={{
+            fontSize: 20,
+            fontWeight: 700,
             color: currentLevel === 4 ? "var(--accent)" : "var(--text-primary)",
             display: "flex",
             alignItems: "center",
@@ -47,11 +47,11 @@ export default function PoHStatusCard({ currentLevel, rawScore, cappedScore, onU
           }}>
             Level {currentLevel}
             {currentLevel === 4 && (
-              <span style={{ 
-                fontSize: 9, 
-                padding: "2px 8px", 
-                background: "var(--accent)", 
-                color: "#010101", 
+              <span style={{
+                fontSize: 9,
+                padding: "2px 8px",
+                background: "var(--accent)",
+                color: "#010101",
                 borderRadius: "4px",
                 letterSpacing: "0.05em"
               }}>FULLY VERIFIED</span>
@@ -75,22 +75,22 @@ export default function PoHStatusCard({ currentLevel, rawScore, cappedScore, onU
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 6 }}>
           {[
             { level: 1, label: "Social" },
-            { level: 2, label: "ENS" },
+            { level: 2, label: "Basename" },
             { level: 3, label: "World ID" },
             { level: 4, label: "Vouching" }
           ].map(step => (
             <div key={step.level} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.05)", position: "relative" }}>
                 {step.level <= currentLevel && (
-                  <motion.div 
+                  <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: "100%" }}
-                    style={{ 
-                      height: "100%", 
-                      borderRadius: 2, 
+                    style={{
+                      height: "100%",
+                      borderRadius: 2,
                       background: "var(--accent)",
                       boxShadow: "0 0 8px rgba(169,221,211,0.4)"
-                    }} 
+                    }}
                   />
                 )}
               </div>
@@ -106,12 +106,12 @@ export default function PoHStatusCard({ currentLevel, rawScore, cappedScore, onU
         <div style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600 }}>
           {currentLevel < 4 ? `+${caps[nextLevel] - currentCap} pts potential` : "Max potential reached"}
         </div>
-        
+
         {currentLevel < 4 && (
-          <button 
+          <button
             onClick={onUpgrade}
             className="premium-button"
-            style={{ padding: "8px 16px", fontSize: 11 }}
+            style={{ padding: "6px 8px", fontSize: 11 }}
           >
             Upgrade to Level {nextLevel} →
           </button>
@@ -119,11 +119,11 @@ export default function PoHStatusCard({ currentLevel, rawScore, cappedScore, onU
       </div>
 
       {isCapped && (
-        <div style={{ 
-          marginTop: 12, 
-          padding: "12px 16px", 
-          borderRadius: "12px", 
-          background: "rgba(245, 200, 66, 0.08)", 
+        <div style={{
+          marginTop: 12,
+          padding: "12px 16px",
+          borderRadius: "12px",
+          background: "rgba(245, 200, 66, 0.08)",
           border: "1px solid rgba(245, 200, 66, 0.3)",
           fontSize: 11,
           color: "#F5C842",
@@ -136,7 +136,7 @@ export default function PoHStatusCard({ currentLevel, rawScore, cappedScore, onU
             ⚠️ Your activity earned {rawScore} pts but PoH Level {currentLevel} caps you at {currentCap}. Verify next level to unlock {rawScore - currentCap} hidden points.
           </div>
           {currentLevel < 4 && (
-            <button 
+            <button
               onClick={onUpgrade}
               style={{
                 background: "transparent",

@@ -15,11 +15,11 @@ export function Ring({ s }) {
   const currentDeg = scoreDeg(s);
 
   const ZONES = [
-    { from: 0,   to: 200,  color: "#ef4444" },
-    { from: 200, to: 500,  color: "#f97316" },
-    { from: 500, to: 700,  color: "#eab308" },
-    { from: 700, to: 900,  color: "#84cc16" },
-    { from: 900, to: 1000, color: "#22c55e" },
+    { from: 0,   to: 200,  color: "var(--error)" },
+    { from: 200, to: 500,  color: "var(--warning)" },
+    { from: 500, to: 700,  color: "var(--info)" },
+    { from: 700, to: 900,  color: "var(--accent)" },
+    { from: 900, to: 1000, color: "var(--text-primary)" },
   ];
 
   const needleLen = R - 18;
@@ -41,26 +41,45 @@ export function Ring({ s }) {
             <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
             <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
           </filter>
+          <linearGradient id="ring-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="var(--accent)" stopOpacity="0"/>
+            <stop offset="50%" stopColor="var(--accent)" stopOpacity="0.5"/>
+            <stop offset="100%" stopColor="var(--accent)" stopOpacity="0"/>
+          </linearGradient>
         </defs>
-        <path d={arcPath(START_DEG, START_DEG + SWEEP)} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={trackW} strokeLinecap="round"/>
+        
+        {/* Rotating background aura */}
+        <circle cx={cx} cy={cy} r={R + 10} fill="none" stroke="url(#ring-grad)" strokeWidth="1" strokeDasharray="100 200" style={{ animation: "spin 10s linear infinite", opacity: 0.3 }}/>
+        
+        <path d={arcPath(START_DEG, START_DEG + SWEEP)} fill="none" stroke="var(--border)" strokeWidth={trackW} strokeLinecap="round"/>
         {ZONES.map((z, zi) => (
-          <path key={zi} d={arcPath(scoreDeg(z.from), scoreDeg(z.to))} fill="none" stroke={z.color} strokeWidth={trackW} strokeLinecap="butt" opacity={0.18}/>
+          <path key={zi} d={arcPath(scoreDeg(z.from), scoreDeg(z.to))} fill="none" stroke={z.color} strokeWidth={trackW} strokeLinecap="butt" opacity={0.12}/>
         ))}
         {s > 0 && (
-          <path d={arcPath(START_DEG, Math.max(currentDeg, START_DEG + 0.5))} fill="none" stroke="var(--accent)" strokeWidth={trackW} strokeLinecap="round" style={{ transition: "d 0.8s cubic-bezier(0.34,1.56,0.64,1)", filter: "drop-shadow(0 0 6px rgba(169,221,211,0.5))" }}/>
+          <path d={arcPath(START_DEG, Math.max(currentDeg, START_DEG + 0.5))} fill="none" stroke="var(--accent)" strokeWidth={trackW} strokeLinecap="round" style={{ transition: "all 1s cubic-bezier(0.23, 1, 0.32, 1)", filter: "drop-shadow(0 0 12px var(--accent-glow))" }}/>
         )}
         {ticks.map((tk, i) => (
-          <line key={i} x1={tk.s.x} y1={tk.s.y} x2={tk.e.x} y2={tk.e.y} stroke="rgba(255,255,255,0.2)" strokeWidth={tk.major ? 1.5 : 0.8}/>
+          <line key={i} x1={tk.s.x} y1={tk.s.y} x2={tk.e.x} y2={tk.e.y} stroke="var(--border-strong)" strokeWidth={tk.major ? 1.5 : 0.8}/>
         ))}
         {[{ val: 0, label: "0" }, { val: 500, label: "500" }, { val: 1000, label: "1K" }].map((lbl, i) => {
-          const p = pt(scoreDeg(lbl.val), R + 18);
-          return <text key={i} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fontSize="9" fill="rgba(255,255,255,0.25)" fontFamily="'Inter',sans-serif">{lbl.label}</text>;
+          const p = pt(scoreDeg(lbl.val), R + 22);
+          return <text key={i} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fontSize="10" fontWeight="700" fill="var(--text-dim)" opacity="0.4" fontFamily="'Inter',sans-serif">{lbl.label}</text>;
         })}
-        <line x1={needleBack.x} y1={needleBack.y} x2={needleTip.x} y2={needleTip.y} stroke="var(--text)" strokeWidth="2" strokeLinecap="round" filter="url(#needle-glow)" style={{ transition: "x1 0.9s cubic-bezier(0.34,1.56,0.64,1), y1 0.9s cubic-bezier(0.34,1.56,0.64,1), x2 0.9s cubic-bezier(0.34,1.56,0.64,1), y2 0.9s cubic-bezier(0.34,1.56,0.64,1)" }}/>
-        <circle cx={cx} cy={cy} r="6" fill="var(--text)" opacity="0.9"/>
+        
+        {/* Needle with magnetic-like elasticity */}
+        <line x1={needleBack.x} y1={needleBack.y} x2={needleTip.x} y2={needleTip.y} stroke="var(--text)" strokeWidth="3" strokeLinecap="round" filter="url(#needle-glow)" style={{ transition: "all 1.4s cubic-bezier(0.34, 1.56, 0.64, 1)" }}/>
+        
+        <circle cx={cx} cy={cy} r="6" fill="var(--text)"/>
         <circle cx={cx} cy={cy} r="3" fill="var(--bg)"/>
-        <text x={cx} y={cy - 32} textAnchor="middle" fontSize="38" fontWeight="300" fill="var(--text)" fontFamily="'Inter',sans-serif" letterSpacing="-2">{s}</text>
-        <text x={cx} y={cy - 14} textAnchor="middle" fontSize="10" fill="var(--text)" fontFamily="'Inter',sans-serif" opacity="0.45">/ 1000</text>
+        
+        {/* Glitchy Score Text */}
+        <text x={cx} y={cy - 40} textAnchor="middle" className="glitch-text" data-text={typeof s === "number" ? s.toFixed(1) : s} fontSize="48" fontWeight="300" fill="var(--text)" fontFamily="'Syne', sans-serif" letterSpacing="-0.04em" style={{ transition: "all 0.5s" }}>{typeof s === "number" ? s.toFixed(1) : s}</text>
+        
+        <text x={cx} y={cy - 12} textAnchor="middle" fontSize="11" fontWeight="800" fill="var(--accent)" fontFamily="'Inter',sans-serif" letterSpacing=".2em" opacity="0.6">REPUTATION</text>
+        
+        {/* Glass reflection overlay */}
+        <path d={arcPath(START_DEG, START_DEG + SWEEP, R + 5)} fill="none" stroke="var(--border-subtle)" strokeWidth="1" strokeLinecap="round" style={{ pointerEvents: "none" }}/>
+        <path d={`M ${cx - R + 20} ${cy - 40} Q ${cx} ${cy - 120} ${cx + R - 20} ${cy - 40}`} fill="none" stroke="var(--border-subtle)" strokeWidth="40" opacity="0.1" style={{ pointerEvents: "none", filter: "blur(20px)" }}/>
       </svg>
     </div>
   );
@@ -110,15 +129,17 @@ export function CategoryBar({ cat, i, activeCat, onToggle }) {
         </span>
         <span style={{ color: "var(--btn-hover)", fontSize: 12, fontFamily: "'Inter',sans-serif" }}>{cat.score}<span style={{ color: "var(--text)", opacity: .5 }}>/{cat.max}</span></span>
       </div>
-      <div style={{ height: 1, background: "rgba(255,255,255,0.06)" }}>
-        <div style={{ height: "100%", background: "var(--text)", width: `${w}%`, transition: "width 1s ease" }}/>
+      <div style={{ height: 2, background: "var(--border-subtle)", borderRadius: 2 }}>
+        <div style={{ height: "100%", background: "var(--accent)", width: `${w}%`, transition: "width 1s ease", borderRadius: 2, boxShadow: "0 0 8px var(--accent-glow)" }}/>
       </div>
-      <div style={{ overflow: "hidden", maxHeight: activeCat === cat.id ? "200px" : "0", transition: "max-height .3s ease", opacity: activeCat === cat.id ? 1 : 0 }}>
-        <div style={{ marginTop: 12, paddingLeft: 14, borderLeft: "1px solid var(--border)", marginLeft: 4 }}>
+      <div style={{ overflow: "hidden", maxHeight: activeCat === cat.id ? "200px" : "0", transition: "all .3s ease", opacity: activeCat === cat.id ? 1 : 0 }}>
+        <div style={{ marginTop: 12, paddingLeft: 14, borderLeft: "2px solid var(--accent-glow)", marginLeft: 4 }}>
           {cat.details && cat.details.map((d, idx) => (
-            <div key={idx} style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 10, color: "var(--text)", opacity: .6, fontFamily: "'Inter',sans-serif" }}>{d.label}</span>
-              <span style={{ fontSize: 10, color: "#a9ddd3", fontFamily: "'Inter',sans-serif", letterSpacing: ".05em" }}>+{d.pts} pts</span>
+            <div key={idx} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, padding: "4px 0" }}>
+              <span style={{ fontSize: 10, color: "var(--text)", opacity: .6, fontFamily: "monospace", textTransform: "uppercase", letterSpacing: ".05em" }}>{d.label}</span>
+              <span style={{ fontSize: 10, color: d.isDecay ? "var(--error)" : "var(--accent)", fontFamily: "monospace", fontWeight: 700 }}>
+                {d.pts > 0 ? "+" : ""}{d.pts} PTS
+              </span>
             </div>
           ))}
         </div>

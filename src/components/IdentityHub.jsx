@@ -6,7 +6,7 @@ import Tag from "./Tag";
 const PLATFORMS = [
   { id: "github", name: "GitHub", impact: "25–60", description: "Verify developer contributions and repository age.", requirements: "Requires account older than 6 months and at least 5 public repositories." },
   { id: "twitter", name: "Twitter / X", impact: "40–70", description: "Establish social footprint and follower trust.", requirements: "Verify follower count and account creation date. Bonus for Verified status." },
-  { id: "ens", name: "ENS Protocol", impact: "30", description: "Primary onchain identity via Ethereum Name Service.", requirements: "Auto-detected from wallet. Increases score by 30 points instantly." },
+  { id: "ens", name: "Basenames", impact: "30", description: "Primary onchain identity via Base Name Service.", requirements: "Auto-detected from wallet. Increases score by 30 points instantly." },
   { id: "discord", name: "Discord", impact: "35–55", description: "Verify community involvement and server roles.", requirements: "Check membership duration and active roles in verified DAOs." },
   { id: "worldcoin", name: "World ID", impact: "150", description: "Proof of Personhood via Orb verification.", requirements: "Requires valid World ID humanness attestation." },
   { id: "farcaster", name: "Farcaster", impact: "Coming Soon", description: "Decentralized social protocol integration.", requirements: "Identity bridging via warpcast soon." },
@@ -116,7 +116,7 @@ export default function IdentityHub({
           let status = "disconnected";
           let data = null;
 
-          if (pohLevel >= 4 && p.id === "farcaster" || p.id === "lens") {
+          if (p.id === "farcaster" || p.id === "lens") {
             status = "coming_soon";
           } else if (p.id === "ens") {
             const connected = social.ens?.hasENS || hasENS;
